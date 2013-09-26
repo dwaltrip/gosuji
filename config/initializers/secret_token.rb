@@ -9,4 +9,19 @@
 
 # Make sure your secret_key_base is kept private
 # if you're sharing your code publicly.
-GoApp::Application.config.secret_key_base = '7ad1b816ea9b253dd507ef6d5eb9dd1405f93d3b37c1f8fff3db76a4ca6596110df57cb2402b7025dc546d30d04f4cfa70696c903a3fe60a7cdfd905fc6184aa'
+require 'securerandom'
+
+def secure_token
+  token_file = Rails.root.join('.secret')
+  if File.exist?(token_file)
+    # Use the existing token.
+    File.read(token_file).chomp
+  else
+    # Generate a new token and store it in token_file.
+    token = SecureRandom.hex(64)
+    File.write(token_file, token)
+    token
+  end
+end
+
+GoApp::Application.config.secret_key_base = secure_token
