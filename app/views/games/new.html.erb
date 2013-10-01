@@ -1,0 +1,19 @@
+
+<h1>New Game</h1>
+
+<%= form_tag :action => :create, :method => :post do %>
+  <p>
+    <%= label_tag('description', 'Description:') %>
+    <%= text_field_tag('description') %>
+  </p>
+  <p>
+    <%= label_tag('p1_id', 'Player 1 Id:') %>
+    <%= text_field_tag('p1_id') %>
+  </p>
+  <p>
+    <%= label_tag('p2_id', 'Player 2 Id:') %>
+    <%= text_field_tag('p2_id') %>
+  </p>
+  <p><%= submit_tag('Submit') %></p>
+<% end %>
+

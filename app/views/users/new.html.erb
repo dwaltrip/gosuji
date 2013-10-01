@@ -1,0 +1,12 @@
+<h1>New User Form</h1>
+<p>Enter your account information</p>
+
+<%= form_tag(users_path, :method => 'post') do %>
+  <%#= label_tag('description', 'Description') %>
+  <%#= text_field_tag('description') %>
+  <%= label_tag('username', 'Username:') %>
+  <%= text_field_tag('username') %>
+  <%= label_tag('email', 'Email:') %>
+  <%= text_field_tag('email') %>
+  <%= submit_tag('Submit') %>
+<% end %>
