@@ -1,0 +1,32 @@
+
+<%#= javascript_include_tag "games.js" %>
+
+<div id='game_container'>
+
+  <div id='header_container'>
+    <h1>Game in Progress!</h1>
+    <p class='game_description'><%= @game.description %></p>
+  </div>
+
+  <div id='board_container'>
+    <%#= form_tag :action => :board_handler, :method => :post do %>
+      <table class='game_table'>
+        <% (1..20).each do |row_num| %>
+          <tr>
+            <% (1..20).each do |cell_num| %>
+              <td>
+                <div class='image_container'>
+                  <%= image_tag("game_board/center_tile_29px.png",
+                                alt: "board tile", class: 'board_tile') %>
+                  <%= image_tag("game_board/black_circle_29px_3px_trans.png",
+                                alt: "black circle", class: 'black_circle') %>
+                </div>
+              </td>
+            <% end %>
+          </tr>
+        <% end %>
+      </table>
+    <%# end %>
+  </div>
+
+</div>

@@ -23,4 +23,9 @@ class GamesController < ApplicationController
     end
   end
 
+  def show
+    logger.info '-- games#show --'
+    @game = Game.find(params[:id])
+  end
+
 end
