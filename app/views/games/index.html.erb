@@ -3,6 +3,8 @@
 
 <ul>
   <% @open_games.each do |g| %>
-    <li><%= g.description %></li>
+    <li><%= link_to g.description, game_path(g) %></li>
   <% end %>
 </ul>
+
+<p><%= link_to "Create new game", new_game_path %></p>

@@ -1,3 +1,55 @@
 // Place all the styles related to the Games controller here.
 // They will automatically be included in application.css.
 // You can use Sass (SCSS) here: http://sass-lang.com/
+
+h1 {
+    margin: 10px 0px 10px 0px;
+}
+
+.game_description {
+    margin: 5px 0px 5px 0px;
+}
+
+.game_table {
+    border-collapse: collapse;
+}
+
+.game_table tr {
+    border-spacing: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.game_table td {
+    border-spacing: 0;
+    margin: 0;
+    padding: 0;
+    line-height: 0;
+}
+
+.image_container {
+    width: 29px;
+    height: 29px;
+    position: relative;
+    z-index: 1;
+}
+
+img.board_tile {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 1;
+}
+
+img.black_circle {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 2;
+    display: none;
+}
+
+.image_container:hover > img.black_circle {
+    display: block;
+}
+
