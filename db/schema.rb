@@ -11,38 +11,44 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20131001005838) do
+ActiveRecord::Schema.define(version: 20130926092312) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
   create_table "games", force: true do |t|
-    t.integer  "player1_id",              null: false
-    t.integer  "player2_id"
-    t.integer  "status",        limit: 2
-    t.integer  "board_size",    limit: 2
+    t.integer  "black_player_id"
+    t.integer  "white_player_id"
+    t.integer  "creator_id",                null: false
+    t.string   "description"
+    t.integer  "board_size",      limit: 2
+    t.integer  "handicap",        limit: 2
+    t.integer  "komi",            limit: 2
+    t.string   "rule_set"
     t.string   "time_settings"
+    t.integer  "status",          limit: 2
+    t.integer  "type",            limit: 2
     t.datetime "started_at"
     t.datetime "finished_at"
     t.datetime "created_at"
     t.datetime "updated_at"
-    t.string   "description"
-    t.integer  "type",          limit: 2
   end
 
-  add_index "games", ["player1_id"], name: "index_games_on_player1_id", using: :btree
-  add_index "games", ["player2_id"], name: "index_games_on_player2_id", using: :btree
+  add_index "games", ["black_player_id"], name: "index_games_on_black_player_id", using: :btree
+  add_index "games", ["white_player_id"], name: "index_games_on_white_player_id", using: :btree
 
   create_table "users", force: true do |t|
-    t.string   "username"
+    t.string   "username",                   null: false
+    t.string   "password_digest"
     t.string   "email"
+    t.integer  "status",           limit: 2
+    t.string   "rank"
     t.text     "account_settings"
     t.datetime "created_at"
     t.datetime "updated_at"
-    t.string   "password_digest"
-    t.string   "rank"
   end
 
-  add_index "users", ["email"], name: "index_users_on_email", unique: true, using: :btree
+  add_index "users", ["email"], name: "index_users_on_email", using: :btree
+  add_index "users", ["username"], name: "index_users_on_username", unique: true, using: :btree
 
 end
