@@ -35,11 +35,11 @@ module BoardHelper
       right = pos + 1
       bot = pos + @size
 
-      # setting to nil if outside boundary of board
-      left = nil if pos % @size == 0
-      right = nil if (pos + 1) % @size == 0
-      bot = nil if bot < 0
-      top = nil if top >= @size**2
+      # setting neighbor to nil if outside board boundary
+      if pos % @size == 0       then left = nil end
+      if (pos + 1) % @size == 0 then right = nil end
+      if bot < 0                then bot = nil end
+      if top >= @size**2        then top = nil end
 
       [left, top, right, bot].keep_if do |candidate_pos|
         color and candidate_pos ? @board[pos] == color : candidate_pos
@@ -55,12 +55,21 @@ module BoardHelper
 
         next_pos = pos
         while not next_pos.nil?  do
-          #get_neighbors(pos, color: color).each do |neighbor_pos|
           get_neighbors(pos).each do |neighbor_pos|
-            new_member = group_members.add? neighbor_pos if @board[pos] == color
-            not_yet_processed.add neighbor_pos if new_member
-            blanks.add neighbor_pos if @board[pos] == BLANK
+
+            if @board[neighbor_pos] == color
+              new_member = group_members.add? neighbor_pos
+
+              if new_member
+                not_yet_processed.add(neighbor_pos)
+              end
+            end
+
+            if @board[pos] == BLANK
+              blanks.add neighbor_pos
+            end
           end
+
           next_pos = not_yet_processed.first
           not_yet_processed.subtract [next_pos]
         end

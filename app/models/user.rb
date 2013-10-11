@@ -13,8 +13,4 @@ class User < ActiveRecord::Base
   # uniqueness isn't 100% guaranteed, so we must enforce it in the db also
   validates :email, presence: true, format: { with: VALID_EMAIL_REGEX },
                     uniqueness: { case_sensitive: false }
-
-  # will use following code later for authentication, etc:
-  #has_secure_password
-  #validates :password, length: { minimum: 6 }
 end
