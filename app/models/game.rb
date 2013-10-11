@@ -1,6 +1,7 @@
 class Game < ActiveRecord::Base
-  belongs_to :player1, :class_name => 'User'
-  belongs_to :player2, :class_name => 'User'
+  belongs_to :black_player, :class_name => 'User'
+  belongs_to :white_player, :class_name => 'User'
+  belongs_to :creator, :class_name => 'User'
 
   # status column:
   # 0 - open game, waiting for opponent

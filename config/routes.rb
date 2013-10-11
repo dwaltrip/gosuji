@@ -1,6 +1,12 @@
 GoApp::Application.routes.draw do
   root :to => redirect('/games')
+
+  get "log_in" => "sessions#new", :as => "log_in"
+  get "log_out" => "sessions#destroy", :as => "log_out"
+  get "sign_up" => "users#new", :as => "sign_up"
+
   resources :users, :only => [:new, :create, :show]
+  resources :sessions
   resources :games
   post 'games/:id', to: 'games#update_board'
 

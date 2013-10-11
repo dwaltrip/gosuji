@@ -7,6 +7,8 @@ gem 'rails', '4.0.0'
 # Use postgresql as the database for Active Record
 gem 'pg', '0.15.1'
 
+gem 'bcrypt-ruby', '3.0.1'
+
 group :development, :test do
   gem 'rspec-rails', '2.13.1'
 
