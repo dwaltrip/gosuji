@@ -2,6 +2,7 @@ class Game < ActiveRecord::Base
   belongs_to :black_player, :class_name => 'User'
   belongs_to :white_player, :class_name => 'User'
   belongs_to :creator, :class_name => 'User'
+  has_many :boards, -> { order 'move_num DESC' }, inverse_of: :game
 
   # status column:
   # 0 - open game, waiting for opponent

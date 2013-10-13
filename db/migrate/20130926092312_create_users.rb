@@ -3,9 +3,9 @@ class CreateUsers < ActiveRecord::Migration
     create_table :users do |t|
       t.string :username, :null => false
       t.string :password_digest
-      t.string :email
+      t.string :email, :limit => 50
       t.integer :status, :limit => 2
-      t.string :rank
+      t.integer :rank, :limit => 2
       t.text :account_settings
 
       t.timestamps
