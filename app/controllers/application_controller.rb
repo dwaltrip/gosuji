@@ -10,7 +10,16 @@ class ApplicationController < ActionController::Base
 
   # return current_user, using existing object if available to save db hits
   def current_user
-    @current_user ||= User.find(session[:user_id]) if session[:user_id]
+    begin
+      @current_user ||= User.find(session[:user_id]) if session[:user_id]
+    rescue ActiveRecord::RecordNotFound
+      # this should only happen if user is deleted from User table, but user still has session cookies
+      # or if somehow Rails session hash encryption is hacked, unlikely.
+      # should log additional information here...
+      logger.warn "-- current_user helper -- session hash contained invalid user_id!!"
+      session.delete(:user_id)
+      return nil
+    end
   end
 
   def require_login
