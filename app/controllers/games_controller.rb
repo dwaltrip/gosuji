@@ -14,7 +14,15 @@ class GamesController < ApplicationController
   end
 
   def create
-    new_game = Game.new(description: params[:description], status: 0, creator: current_user)
+    new_game = Game.new(
+      description: params[:description],
+      creator: current_user,
+      board_size: 19,
+      status: Game::OPEN,
+      mode: Game::NOT_RANKED,
+      time_settings: "none"
+    )
+
     if new_game.save
       redirect_to games_path, notice: 'Game was created successfully!'
     elsif

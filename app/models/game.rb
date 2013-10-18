@@ -4,11 +4,16 @@ class Game < ActiveRecord::Base
   belongs_to :creator, :class_name => 'User'
   has_many :boards, -> { order 'move_num DESC' }, inverse_of: :game
 
-  # status column:
-  # 0 - open game, waiting for opponent
-  # 1 - active game, currently being played
-  # 2 - finished game
-  scope :open, lambda { where(:status => 0) }
-  scope :active, lambda { where(:status => 1) }
+  # game.status constants
+  OPEN = 0
+  ACTIVE = 1
+  FINISHED = 2
+
+  # game.mode constants
+  RANKED = 0
+  NOT_RANKED = 1
+
+  scope :open, lambda { where(:status => OPEN) }
+  scope :active, lambda { where(:status => ACTIVE) }
 
 end
