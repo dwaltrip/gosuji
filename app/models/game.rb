@@ -2,7 +2,7 @@ class Game < ActiveRecord::Base
   belongs_to :black_player, :class_name => 'User'
   belongs_to :white_player, :class_name => 'User'
   belongs_to :creator, :class_name => 'User'
-  has_many :boards, -> { order 'move_num DESC' }, inverse_of: :game
+  has_many :boards, -> { order 'move_num ASC' }, inverse_of: :game
 
   # game.status constants
   OPEN = 0
@@ -105,6 +105,15 @@ class Game < ActiveRecord::Base
 
   def board_display_data
     self.active_board.get_positions(self.board_size)
+  end
+
+  def process_move_and_update(pos)
+    #### todo still -- process move and determine list of valid moves
+
+    board = self.active_board.replicate_and_update(pos, self.color(self.active_player))
+    board.save
+
+    board
   end
 
   def active?

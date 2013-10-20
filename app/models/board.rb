@@ -1,6 +1,10 @@
 class Board < ActiveRecord::Base
   belongs_to :game, inverse_of: :boards
 
+  BLACK = false
+  WHITE = true
+  STONE_VALS = { :black => BLACK, :white => WHITE }
+
   def self.initial_board(game)
     board = new(
       game: game,
@@ -15,6 +19,19 @@ class Board < ActiveRecord::Base
     board.save
   end
 
+  def replicate_and_update(pos, color)
+    new_board = self.dup
+    new_board.game = self.game
+    new_board.move_num = self.move_num + 1
+    new_board.pos = pos
+    new_board.add_stone(pos, color)
+
+    new_board
+  end
+
+  def add_stone(pos, color)
+    self["pos_#{pos}".to_sym] = STONE_VALS[color]
+  end
 
   def get_positions(size)
     logger.info '-- inside board.get_positions -- entering'

@@ -9,7 +9,7 @@
   </div>
 
   <div id='board_container'>
-    <%#= form_tag :action => :update_board, :method => :post do %>
+    <%= form_tag({:action => :update_board}, { :id => 'board-form' }) do %>
       <table class='board-table'>
         <%=
           render(partial: 'games/tile', collection: @tiles, locals: {
@@ -20,7 +20,7 @@
           })
         %>
       </table>
-    <%# end %>
+    <% end %>
   </div>
 
 </div>
