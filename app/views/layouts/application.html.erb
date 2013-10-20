@@ -17,6 +17,8 @@
       <%= link_to "Sign up", sign_up_path %> or
       <%= link_to "log in", log_in_path %>
     <% end %>
+    <br>
+    <%= yield(:extra_nav_links) %>
   </div>
 
   <% if flash[:notice].present? %>
