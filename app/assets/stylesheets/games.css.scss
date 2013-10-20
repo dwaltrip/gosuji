@@ -147,7 +147,11 @@ table.game-list {
     width: 64%;
 }
 
-.game-list th.board-size-col, .game-list th.first-link-col {
+.game-list th.profile-description-col {
+    width: 56%;
+}
+
+.game-list th.board-size-col, .game-list th.first-link-col, .game-list th.active-col {
     width: 8%;
 }
 

@@ -7,7 +7,7 @@ GoApp::Application.routes.draw do
   resources :sessions
 
   get "sign_up" => "users#new", :as => "sign_up"
-  resources :users, :only => [:new, :create]
+  resources :users, :only => [:new, :create, :show]
 
   post 'games/:id', to: 'games#update_board'
   resources :games do

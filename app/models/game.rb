@@ -17,6 +17,19 @@ class Game < ActiveRecord::Base
   scope :active, lambda { where(:status => ACTIVE) }
 
 
+
+  def opponent(user)
+    if user == self.black_player
+      self.white_player
+    elsif user == self.white_player
+      self.black_player
+    else
+      logger.info "-- game.opponent -- #{user.username} is not playing in game id #{self.id}"
+      nil
+    end
+  end
+
+
   def pregame_setup(challenger)
     logger.info '-- entering game.pregame_setup --'
 
@@ -47,6 +60,18 @@ class Game < ActiveRecord::Base
     Board.initial_board(self)
 
     logger.info '-- exiting game.pregame_setup --'
+  end
+
+  def active?
+    self.status == ACTIVE
+  end
+
+  def finished?
+    self.status == FINISHED
+  end
+
+  def not_open?
+    self.status != OPEN
   end
 
 end

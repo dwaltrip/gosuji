@@ -1,0 +1,32 @@
+<h1>Profile Page</h1>
+
+<h3>My Games</h3>
+
+<table id='users-games-table' class='game-list'>
+
+  <thead>
+    <tr>
+      <th class='username-col'>Opponent</th>
+      <th class='board-size-col centered'>Size</th>
+      <th class='profile-description-col'>Description</th>
+      <th class='active-col centered'>Active?</th>
+      <th class='first-link-col centered'>Load</th>
+    </tr>
+  </thead>
+
+  <% @started_games.each do |g| %>
+    <% if g.finished? %>
+      <tr class='finished-game'>
+    <% else %>
+      <tr class='active-game'>
+    <% end %>
+
+    <td><%= g.opponent(current_user).username if g.opponent(current_user) %></td>
+    <td class='centered'><%= g.board_size %> x <%= g.board_size %></td>
+    <td><%= g.description %></td>
+    <td class='centered'><%= if g.active? then "Yep!" else "-" end %></td>
+    <td class='centered'><%= link_to "Load", game_path(g) %></td>
+    </tr>
+  <% end %>
+
+</table>
