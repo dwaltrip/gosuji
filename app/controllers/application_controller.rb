@@ -4,7 +4,8 @@ class ApplicationController < ActionController::Base
   protect_from_forgery with: :exception
 
   helper :board
-  helper_method :current_user
+
+  helper_method :current_user, :tile_pixel_size
 
   private
 
@@ -20,6 +21,11 @@ class ApplicationController < ActionController::Base
       session.delete(:user_id)
       return nil
     end
+  end
+
+  # todo: don't hardcode this, use information from request to choose best size
+  def tile_pixel_size
+    29
   end
 
   def require_login

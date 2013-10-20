@@ -42,7 +42,7 @@ class GamesController < ApplicationController
   end
 
   def show
-    logger.info '-- games#show --'
+    @tiles = @game.board_display_data
   end
 
   def update_board

@@ -17,6 +17,48 @@ class Game < ActiveRecord::Base
   scope :active, lambda { where(:status => ACTIVE) }
 
 
+  ##-- game model instance methods --##
+
+  def active_board
+    boards.last
+  end
+
+  def next_move_num
+    active_board.move_num + 1
+  end
+
+  def player_at_move(move_num)
+    if move_num == 0
+      return nil
+    end
+    white_goes_first = (self.handicap and self.handicap > 0)
+    black_goes_first = (not white_goes_first)
+
+    # move 0 is blank or handicap stone placement -- happens automatically, not from player actions
+    if ((move_num % 2 == 1) and white_goes_first) or ((move_num % 2 == 0) and black_goes_first)
+      self.white_player
+    else
+      self.black_player
+    end
+  end
+
+  def active_player
+    self.player_at_move(self.next_move_num)
+  end
+
+  def inactive_player
+    self.player_at_move(self.active_board.move_num)
+  end
+
+  def color(player = nil)
+    player = self.active_player if player == nil
+
+    if player == self.black_player
+      :black
+    elsif player == self.white_player
+      :white
+    end
+  end
 
   def opponent(user)
     if user == self.black_player
@@ -28,7 +70,6 @@ class Game < ActiveRecord::Base
       nil
     end
   end
-
 
   def pregame_setup(challenger)
     logger.info '-- entering game.pregame_setup --'
@@ -60,6 +101,10 @@ class Game < ActiveRecord::Base
     Board.initial_board(self)
 
     logger.info '-- exiting game.pregame_setup --'
+  end
+
+  def board_display_data
+    self.active_board.get_positions(self.board_size)
   end
 
   def active?
