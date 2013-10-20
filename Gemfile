@@ -10,6 +10,7 @@ gem 'pg', '0.15.1'
 gem 'bcrypt-ruby', '3.0.1'
 
 group :development, :test do
+  gem 'thin'
   gem 'rspec-rails', '2.13.1'
 
   ## used for more advanced testing set-up
