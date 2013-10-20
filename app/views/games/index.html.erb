@@ -17,7 +17,7 @@
       <td><%= g.creator.username %></td>
       <td class='centered'><%= g.board_size %> x <%= g.board_size %></td>
       <td><%= g.description %></td>
-      <td class='centered'><%= link_to "Show", game_path(g) %></td>
+      <td class='centered'><%= link_to "Join", join_game_path(g) %></td>
     </tr>
   <% end %>
 </table>

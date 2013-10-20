@@ -1,5 +1,5 @@
 class GamesController < ApplicationController
-  before_action :find_game, only: [:show, :update_board]
+  before_action :find_game, only: [:show, :join, :update_board]
   before_filter :require_login, :except => :index
 
   def find_game
@@ -28,6 +28,17 @@ class GamesController < ApplicationController
     elsif
       redirect_to new_game_path, alert: new_game.errors.full_messages.to_sentence
     end
+  end
+
+  def join
+    if current_user == @game.creator
+      redirect_to games_path, notice: "You can't join a game you created!"
+      return
+    end
+
+    @game.pregame_setup(current_user)
+
+    redirect_to @game
   end
 
   def show

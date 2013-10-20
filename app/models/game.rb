@@ -16,4 +16,37 @@ class Game < ActiveRecord::Base
   scope :open, lambda { where(:status => OPEN) }
   scope :active, lambda { where(:status => ACTIVE) }
 
+
+  def pregame_setup(challenger)
+    logger.info '-- entering game.pregame_setup --'
+
+    if challenger.rank.nil? or creator.rank.nil? or challenger.rank == creator.rank
+      coin_flip = rand()
+      challenger_is_black = (coin_flip < 0.5)
+      self.komi = 6.5
+    else
+      challenger_is_black = (challenger.rank < creator.rank)
+      self.handicap = (challenger.rank - creator.rank).abs
+      self.komi = 0.5
+    end
+
+    if challenger_is_black then
+      self.black_player = challenger
+      self.white_player = creator
+    elsif
+      self.black_player = creator
+      self.white_player = challenger
+    end
+
+    logger.info "-- result of coin flip: #{coin_flip}"
+    logger.info "-- black: #{self.black_player.username}, white: #{self.white_player.username}"
+
+    self.status = ACTIVE
+    self.save
+
+    Board.initial_board(self)
+
+    logger.info '-- exiting game.pregame_setup --'
+  end
+
 end
