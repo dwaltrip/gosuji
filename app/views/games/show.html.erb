@@ -6,6 +6,15 @@
       <%= @game.black_player.username %> vs.
       <%= @game.white_player.username %>!
     </h1>
+    <div class='game-status-info'>
+      <p>
+        Current Turn -- <%= @game.active_player.username %>
+        (<%= @game.color(@game.active_player).to_s.capitalize %>),
+        Move: <%= @game.next_move_num %><br>
+        Captures -- Black: <%= @status_details[:captures][:black] %>,
+                    White: <%= @status_details[:captures][:white] %>
+      </p>
+    </div>
   </div>
 
   <div id='board_container'>

@@ -17,6 +17,7 @@ class Board < ActiveRecord::Base
     end
 
     board.save
+    board.pretty_print
   end
 
   def replicate_and_update(pos, color)
@@ -31,6 +32,33 @@ class Board < ActiveRecord::Base
 
   def add_stone(pos, color)
     self["pos_#{pos}".to_sym] = STONE_VALS[color]
+  end
+
+  def time_left
+    self.seconds_remaining
+  end
+
+  def get_stones
+    black_stones, white_stones = [], []
+    (0...self.game.board_size**2).each do |n|
+      val = self["pos_#{n}".to_sym]
+      if val == BLACK
+        black_stones << n
+      elsif val == WHITE
+        white_stones << n
+      end
+    end
+    [black_stones, white_stones]
+  end
+
+  def black_stones
+    black_stones, white_stones = self.get_stones
+    black_stones
+  end
+
+  def white_stones
+    black_stones, white_stones = self.get_stones
+    white_stones
   end
 
   def get_positions(size)
@@ -106,6 +134,26 @@ class Board < ActiveRecord::Base
       end
     end
     star_points
+  end
+
+  # for debugging, logging, and console experimentation
+  def pretty_print(console = false)
+    printer = Proc.new do |*args|
+      if console
+        puts *args
+      else
+        for log_note in args
+          logger.info log_note
+        end
+      end
+    end
+
+    black_stones, white_stones = self.get_stones
+    printer.call "---------- pretty printing board with id #{self.id} ----------"
+    printer.call "Game Id: #{game_id.inspect}", "Move: #{move_num.inspect}", "Pos: #{pos.inspect}"
+    printer.call "Played by: #{game.player_at_move(self.move_num).username.inspect}" if self.move_num > 0
+    printer.call "Black Stones: #{black_stones.inspect}", "White Stones: #{white_stones.inspect}"
+    printer.call "---------- done pretty printing ----------"
   end
 
 end

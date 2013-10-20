@@ -60,6 +60,47 @@ class Game < ActiveRecord::Base
     end
   end
 
+  def boards_by_color(last_only = false)
+    if boards.length == 0
+      return
+    elsif last_only
+      b1, b2 = boards[-1], boards[-2]
+      if self.color(self.player_at_move(b1.move_num)) == :black
+        black_board, white_board = b1, b2
+      else
+        black_board, white_board = b2, b1
+      end
+      [black_board, white_board]
+    else
+      black_boards, white_boards = [], []
+      boards.each do |b|
+        if b.move_num > 0
+          black_boards << b if self.color(self.player_at_move(b.move_num)) == :black
+          white_boards << b if self.color(self.player_at_move(b.move_num)) == :white
+        end
+      end
+      [black_boards, white_boards]
+    end
+  end
+
+  def status_details
+    black_board, white_board = self.boards_by_color(last_only = true)
+
+    details = {}
+    details[:captures] = {
+      black: black_board ? (black_board.captured_stones || 0) : 0,
+      white: white_board ? (white_board.captured_stones || 0) : 0
+    }
+    if self.time_settings && self.time_settings.length > 0
+      details[:time_left] = {
+        black: black_board ? black_board.time_left : nil,
+        white: white_board ? white_board.time_left : nil
+      }
+    end
+    details
+  end
+
+
   def opponent(user)
     if user == self.black_player
       self.white_player

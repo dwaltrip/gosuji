@@ -43,6 +43,9 @@ class GamesController < ApplicationController
 
   def show
     @tiles = @game.board_display_data
+    @status_details = @game.status_details
+
+    @game.active_board.pretty_print
   end
 
   def update_board
