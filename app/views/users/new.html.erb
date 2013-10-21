@@ -4,7 +4,7 @@
 
 <%= render 'layouts/form_errors', :form_obj => @user if @user %>
 
-<%= form_tag(users_path, :method => 'post') do %>
+<%= form_tag users_path do %>
   <p>
     <%= label_tag 'username', 'Username:' %><br>
     <%= text_field_tag 'username' %>

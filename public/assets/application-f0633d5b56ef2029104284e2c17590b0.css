@@ -1,0 +1,153 @@
+/*
+ * This is a manifest file that'll be compiled into application.css, which will include all the files
+ * listed below.
+ *
+ * Any CSS and SCSS file within this directory, lib/assets/stylesheets, vendor/assets/stylesheets,
+ * or vendor/assets/stylesheets of plugins, if any, can be referenced here using a relative path.
+ *
+ * You're free to add application-wide styles to this file and they'll appear at the top of the
+ * compiled file, but it's generally better to create a new file per style scope.
+ *
+
+
+ */
+
+h1 {
+  margin: 10px 0px 10px 0px; }
+
+.game-status-info {
+  margin: 5px 0px 5px 0px; }
+
+.board-table {
+  border-collapse: collapse;
+  margin: 0px auto; }
+
+.board-table tr, .board-table td {
+  border-spacing: 0;
+  margin: 0;
+  padding: 0; }
+
+.board-table td {
+  line-height: 0; }
+
+.tile_container {
+  width: 29px;
+  height: 29px;
+  position: relative;
+  z-index: 1; }
+
+img.board_tile, img.preview_stone {
+  position: absolute;
+  top: 0;
+  left: 0; }
+
+img.board_tile {
+  z-index: 1; }
+
+img.preview_stone {
+  z-index: 2;
+  display: none; }
+
+.tile_container:hover > img.preview_stone {
+  display: block; }
+
+div.tile_container.clickable {
+  cursor: pointer; }
+
+div#header_container {
+  text-align: center;
+  margin: 10px 0 10px 0;
+  background-color: #dce9f9;
+  -moz-border-radius: 6px;
+  -webkit-border-radius: 6px;
+  border-radius: 6px;
+  border: 1.5px solid #A3A3A3; }
+
+body {
+  width: 900px;
+  margin: 40px auto;
+  font-family: 'trebuchet MS', 'Lucida sans', Arial;
+  font-size: 14px;
+  color: #444; }
+
+table.game-list {
+  width: 100%;
+  border-spacing: 0;
+  border: solid #A3A3A3 1px;
+  -moz-border-radius: 6px;
+  -webkit-border-radius: 6px;
+  border-radius: 6px;
+  -webkit-box-shadow: 0 1px 1px #ccc;
+  -moz-box-shadow: 0 1px 1px #ccc;
+  box-shadow: 0 1px 1px #ccc; }
+
+.game-list tr:hover {
+  background: #fbf8e9;
+  -o-transition: all 0.1s ease-in-out;
+  -webkit-transition: all 0.1s ease-in-out;
+  -moz-transition: all 0.1s ease-in-out;
+  -ms-transition: all 0.1s ease-in-out;
+  transition: all 0.1s ease-in-out; }
+
+.game-list td, .game-list th {
+  border-left: 1px solid #ccc;
+  border-top: 1px solid #ccc;
+  padding: 10px;
+  text-align: left; }
+
+.game-list th {
+  background-color: #dce9f9;
+  background-image: -webkit-gradient(linear, left top, left bottom, from(#ebf3fc), to(#dce9f9));
+  background-image: -webkit-linear-gradient(top, #ebf3fc, #dce9f9);
+  background-image: -moz-linear-gradient(top, #ebf3fc, #dce9f9);
+  background-image: -ms-linear-gradient(top, #ebf3fc, #dce9f9);
+  background-image: -o-linear-gradient(top, #ebf3fc, #dce9f9);
+  background-image: linear-gradient(top, #ebf3fc, #dce9f9);
+  -webkit-box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+  -moz-box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+  border-top: none;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5); }
+
+.game-list td:first-child, .game-list th:first-child {
+  border-left: none; }
+
+.game-list th:first-child {
+  -moz-border-radius: 6px 0 0 0;
+  -webkit-border-radius: 6px 0 0 0;
+  border-radius: 6px 0 0 0; }
+
+.game-list th:last-child {
+  -moz-border-radius: 0 6px 0 0;
+  -webkit-border-radius: 0 6px 0 0;
+  border-radius: 0 6px 0 0; }
+
+.game-list th:only-child {
+  -moz-border-radius: 6px 6px 0 0;
+  -webkit-border-radius: 6px 6px 0 0;
+  border-radius: 6px 6px 0 0; }
+
+.game-list tr:last-child td:first-child {
+  -moz-border-radius: 0 0 0 6px;
+  -webkit-border-radius: 0 0 0 6px;
+  border-radius: 0 0 0 6px; }
+
+.game-list tr:last-child td:last-child {
+  -moz-border-radius: 0 0 6px 0;
+  -webkit-border-radius: 0 0 6px 0;
+  border-radius: 0 0 6px 0; }
+
+.game-list th.username-col {
+  width: 20%; }
+
+.game-list th.index-description-col {
+  width: 64%; }
+
+.game-list th.profile-description-col {
+  width: 56%; }
+
+.game-list th.board-size-col, .game-list th.first-link-col, .game-list th.active-col {
+  width: 8%; }
+
+.game-list td.centered, .game-list th.centered {
+  text-align: center; }

@@ -1,9 +1,26 @@
-<h1>Games Index</h1>
+<h1>Open Games</h1>
 
-<ul>
+<h3>Find a game to join!</h3>
+<%= link_to "Refresh_page", games_path %>
+
+<table id='open-games-table' class='game-list'>
+  <thead>
+    <tr>
+      <th class='username-col'>User</th>
+      <th class='board-size-col centered'>Size</th>
+      <th class='index-description-col'>Description</th>
+      <th class='first-link-col centered'>Join</th>
+    </tr>
+  </thead>
+
   <% @open_games.each do |g| %>
-    <li><%= link_to g.description, game_path(g) %></li>
+    <tr>
+      <td><%= g.creator.username %></td>
+      <td class='centered'><%= g.board_size %> x <%= g.board_size %></td>
+      <td><%= g.description %></td>
+      <td class='centered'><%= link_to "Join", join_game_path(g) %></td>
+    </tr>
   <% end %>
-</ul>
+</table>
 
 <p><%= link_to "Create new game", new_game_path %></p>

@@ -1,5 +1,5 @@
 class GamesController < ApplicationController
-  before_action :find_game, only: [:show, :update_board]
+  before_action :find_game, only: [:show, :join, :update_board]
   before_filter :require_login, :except => :index
 
   def find_game
@@ -14,7 +14,15 @@ class GamesController < ApplicationController
   end
 
   def create
-    new_game = Game.new(description: params[:description], status: 0, creator: current_user)
+    new_game = Game.new(
+      description: params[:description],
+      creator: current_user,
+      board_size: 19,
+      status: Game::OPEN,
+      mode: Game::NOT_RANKED,
+      time_settings: "none"
+    )
+
     if new_game.save
       redirect_to games_path, notice: 'Game was created successfully!'
     elsif
@@ -22,12 +30,35 @@ class GamesController < ApplicationController
     end
   end
 
+  def join
+    if current_user == @game.creator
+      redirect_to games_path, notice: "You can't join a game you created!"
+      return
+    end
+
+    @game.pregame_setup(current_user)
+
+    redirect_to @game
+  end
+
   def show
-    logger.info '-- games#show --'
+    @tiles = @game.board_display_data
+    @status_details = @game.status_details
+
+    @game.active_board.pretty_print
   end
 
   def update_board
-    board_handler = BoardHelper::BoardHandler.new()
+    logger.info "-- games#update_board -- entering"
+
+    # board handler is not fully functional yet, still need to finish 'valid moves' calculation step
+    ##### board_handler = BoardHelper::BoardHandler.new()
+
+    logger.info "-- params[:new_move] = #{params[:new_move].inspect} --"
+    new_board = @game.process_move_and_update(params[:new_move])
+
+    logger.info "-- games#update_board -- rendering"
+    redirect_to @game
   end
 
 end

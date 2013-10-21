@@ -1,32 +1,37 @@
-
-<%#= javascript_include_tag "games.js" %>
+<%= render "layouts/back_to_games_list" %>
 
 <div id='game_container'>
 
   <div id='header_container'>
-    <h1>Game in Progress!</h1>
-    <p class='game_description'><%= @game.description %></p>
+    <h1>Game in progress:
+      <%= @game.black_player.username %> vs.
+      <%= @game.white_player.username %>!
+    </h1>
+    <%= link_to "(Refresh game)", @game %>
+    <div class='game-status-info'>
+      <p>
+        Current Turn -- <%= @game.active_player.username %>
+        (<%= @game.color(@game.active_player).to_s.capitalize %>),
+        Move: <%= @game.next_move_num %><br>
+        Captures -- Black: <%= @status_details[:captures][:black] %>,
+                    White: <%= @status_details[:captures][:white] %>
+      </p>
+    </div>
   </div>
 
   <div id='board_container'>
-    <%#= form_tag :action => :update_board, :method => :post do %>
-      <table class='game_table'>
-        <% (1..20).each do |row_num| %>
-          <tr>
-            <% (1..20).each do |cell_num| %>
-              <td>
-                <div class='image_container'>
-                  <%= image_tag("game_board/center_tile_29px.png",
-                                alt: "board tile", class: 'board_tile') %>
-                  <%= image_tag("game_board/black_circle_29px_3px_trans.png",
-                                alt: "black circle", class: 'black_circle') %>
-                </div>
-              </td>
-            <% end %>
-          </tr>
-        <% end %>
+    <%= form_tag({:action => :update_board}, { :id => 'board-form' }) do %>
+      <table class='board-table'>
+        <%=
+          render(partial: 'games/tile', collection: @tiles, locals: {
+            board_size: @game.board_size,
+            player_color: @game.color(current_user).to_s,
+            tile_size: tile_pixel_size,
+            opponents_turn: (current_user != @game.active_player)
+          })
+        %>
       </table>
-    <%# end %>
+    <% end %>
   </div>
 
 </div>

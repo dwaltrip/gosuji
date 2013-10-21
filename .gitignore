@@ -26,3 +26,6 @@ doc/
 .DS_store
 .idea
 .secret
+
+# Ignore zz-testing-random directory
+/zzz-misc-random

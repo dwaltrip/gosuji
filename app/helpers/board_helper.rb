@@ -1,6 +1,4 @@
 module BoardHelper
-  require 'JSON'
-  require 'set'
 
   class BoardHandler
     BLANK = 0
@@ -14,7 +12,7 @@ module BoardHelper
       @size = params.fetch(:size, 19)
 
       if params.key?(:json_board)
-        @board = JSON.parse(params[:json_board])
+        @board = ActiveSupport::JSON.decode(params[:json_board])
       else
         @board = params.fetch(:board, Array.new(@size**2, 0))
       end
