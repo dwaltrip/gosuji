@@ -48,6 +48,24 @@ class GamesController < ApplicationController
     @game.active_board.pretty_print
   end
 
+  def testing_rulebook
+    # testing and debugging only -- useful for visualing output of rulebook::handler
+    logger.info '-- games#testing_rulebook -- entering'
+
+    @game = Game.find(params[:id])
+
+    board = @game.active_board
+    board.pretty_print
+
+    @rulebook_handler = Rulebook::Handler.new(
+      size: @game.board_size,
+      board: board.positions_array
+    )
+
+    logger.info '-- games#testing_rulebook -- exiting'
+    render file: '/games/testing_rulebook', layout: false
+  end
+
   def update_board
     logger.info "-- games#update_board -- entering"
 

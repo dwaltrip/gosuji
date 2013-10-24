@@ -16,4 +16,7 @@ GoApp::Application.routes.draw do
     end
   end
 
+  # temp route for testing purposes
+  get 'games/:id/testing_rulebook', to: 'games#testing_rulebook', :as => 'test_rulebook'
+
 end
