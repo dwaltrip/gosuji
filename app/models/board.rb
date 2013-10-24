@@ -1,9 +1,10 @@
 class Board < ActiveRecord::Base
   belongs_to :game, inverse_of: :boards
 
-  BLACK = false
-  WHITE = true
-  STONE_VALS = { :black => BLACK, :white => WHITE }
+  DB_STONE_MAPPINGS = {
+    :black => GoApp::BLACK_STONE,
+    :white => GoApp::WHITE_STONE
+  }
 
   def self.initial_board(game)
     board = new(
@@ -31,20 +32,20 @@ class Board < ActiveRecord::Base
   end
 
   def add_stone(pos, color)
-    self["pos_#{pos}".to_sym] = STONE_VALS[color]
+    self["pos_#{pos}".to_sym] = DB_STONE_MAPPINGS[color]
   end
 
   def time_left
     self.seconds_remaining
   end
 
-  def get_stones
+  def stone_lists
     black_stones, white_stones = [], []
     (0...self.game.board_size**2).each do |n|
       val = self["pos_#{n}".to_sym]
-      if val == BLACK
+      if val == GoApp::BLACK_STONE
         black_stones << n
-      elsif val == WHITE
+      elsif val == GoApp::WHITE_STONE
         white_stones << n
       end
     end
@@ -52,19 +53,24 @@ class Board < ActiveRecord::Base
   end
 
   def black_stones
-    black_stones, white_stones = self.get_stones
+    black_stones, white_stones = self.stone_lists
     black_stones
   end
 
   def white_stones
-    black_stones, white_stones = self.get_stones
+    black_stones, white_stones = self.stone_lists
     white_stones
   end
 
-  def get_positions(size)
-    logger.info '-- inside board.get_positions -- entering'
+  def positions_array
+    Array.new(self.game.board_size**2) { |n| self["pos_#{n}".to_sym] }
+  end
 
-    positions_array = Array.new(size**2) do |n|
+  def get_display_data
+    size = self.game.board_size
+    logger.info '-- inside board.get_display_data -- entering'
+
+    display_data = Array.new(size**2) do |n|
       pos = self["pos_#{n}".to_sym]
       tile = {}
 
@@ -87,34 +93,38 @@ class Board < ActiveRecord::Base
       elsif pos == true
         tile[:stone] = :white
       elsif pos != nil
-        logger.fatal "!!!! -- board.get_positions -- unexpected value for pos_#{n} column!"
+        logger.fatal "!!!! -- board.get_display_data -- unexpected value for pos_#{n} column!"
+      end
+
+      if tile.has_key?(:stone)
+        tile[:invalid_move?] = true
       end
 
       tile
     end
 
     self.get_star_points(size).each do |star_point_pos|
-      if not positions_array[star_point_pos].has_key? :stone
-        positions_array[star_point_pos][:star_point?] = true
+      if not display_data[star_point_pos].has_key? :stone
+        display_data[star_point_pos][:star_point?] = true
       end
     end
 
     if self.ko
-      if positions_array[self.ko][:stone]
-        logger.warn "!! -- board.get_positions -- non-empty field marked as ko, this is wrong!"
+      if display_data[self.ko][:stone]
+        logger.warn "!! -- board.get_display_data -- non-empty field marked as ko, this is wrong!"
       end
-      positions_array[self.ko][:ko?] = true
+      display_data[self.ko][:ko?] = true
     end
 
     if self.pos
-      positions_array[self.pos][:most_recent_stone?] = true
-      if not positions_array[self.pos][:stone]
-        logger.warn '!! -- board.get_positions -- current move was not marked as stone tile properly!'
+      display_data[self.pos][:most_recent_stone?] = true
+      if not display_data[self.pos][:stone]
+        logger.warn '!! -- board.get_display_data -- current move was not marked as stone tile properly!'
       end
     end
 
-    logger.info '-- inside board.get_positions -- exiting'
-    positions_array
+    logger.info '-- inside board.get_display_data -- exiting'
+    display_data
   end
 
   ## todo -- star points should be pre-calcuted when server loads and fetched as constants
@@ -148,7 +158,7 @@ class Board < ActiveRecord::Base
       end
     end
 
-    black_stones, white_stones = self.get_stones
+    black_stones, white_stones = self.stone_lists
     printer.call "---------- pretty printing board with id #{self.id} ----------"
     printer.call "Game Id: #{game_id.inspect}", "Move: #{move_num.inspect}", "Pos: #{pos.inspect}"
     printer.call "Played by: #{game.player_at_move(self.move_num).username.inspect}" if self.move_num > 0

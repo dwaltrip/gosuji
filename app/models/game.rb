@@ -145,7 +145,7 @@ class Game < ActiveRecord::Base
   end
 
   def board_display_data
-    self.active_board.get_positions(self.board_size)
+    self.active_board.get_display_data
   end
 
   def process_move_and_update(pos)

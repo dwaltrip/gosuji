@@ -11,8 +11,15 @@ module GoApp
   BOARD_SIZE = 19
   MAX_BOARD_SIZE = 35
 
+  EMPTY_TILE = nil
+  BLACK_STONE = false
+  WHITE_STONE = true
+
   class Application < Rails::Application
     config.active_record.schema_format = :ruby
+
+    # load modules/classes from lib folder
+    config.autoload_paths += Dir["#{config.root}/lib/**/"]
 
     # Settings in config/environments/* take precedence over those specified here.
     # Application configuration should go into files in config/initializers
