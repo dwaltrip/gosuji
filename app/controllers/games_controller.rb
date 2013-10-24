@@ -44,6 +44,9 @@ class GamesController < ApplicationController
   def show
     @tiles = @game.board_display_data
     @status_details = @game.status_details
+    @viewer_type = @game.viewer_type(current_user)
+    @viewer_color = @game.player_color(current_user).to_s
+    @active_player_color = @game.player_color(@game.active_player).to_s
 
     @game.active_board.pretty_print
   end
@@ -69,11 +72,8 @@ class GamesController < ApplicationController
   def update_board
     logger.info "-- games#update_board -- entering"
 
-    # board handler is not fully functional yet, still need to finish 'valid moves' calculation step
-    ##### board_handler = BoardHelper::BoardHandler.new()
-
     logger.info "-- params[:new_move] = #{params[:new_move].inspect} --"
-    new_board = @game.process_move_and_update(params[:new_move])
+    @game.process_move_and_update(params[:new_move])
 
     logger.info "-- games#update_board -- rendering"
     redirect_to @game

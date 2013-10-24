@@ -8,10 +8,11 @@
       <%= @game.white_player.username %>!
     </h1>
     <%= link_to "(Refresh game)", @game %>
+
     <div class='game-status-info'>
       <p>
         Current Turn -- <%= @game.active_player.username %>
-        (<%= @game.color(@game.active_player).to_s.capitalize %>),
+        (<%= @active_player_color %>),
         Move: <%= @game.next_move_num %><br>
         Captures -- Black: <%= @status_details[:captures][:black] %>,
                     White: <%= @status_details[:captures][:white] %>
@@ -25,9 +26,9 @@
         <%=
           render(partial: 'games/tile', collection: @tiles, locals: {
             board_size: @game.board_size,
-            player_color: @game.color(current_user).to_s,
-            tile_size: tile_pixel_size,
-            opponents_turn: (current_user != @game.active_player)
+            viewer_type: @viewer_type,
+            viewer_color: @viewer_color,
+            tile_size: tile_pixel_size
           })
         %>
       </table>

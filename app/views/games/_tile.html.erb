@@ -8,8 +8,10 @@
 <% end %>
 
 <% unless tile[:stone] %>
-  <% if tile[:in_center?] %>
-    <% img_filename = tile[:star_point?] ? "star_point" : "center" %>
+  <% if tile[:star_point?]   %>
+    <% img_filename = "star_point" %>
+  <% elsif tile[:in_center?] %>
+    <% img_filename = "center" %>
   <% else %>
     <% img_filename = '' %>
 
@@ -23,18 +25,27 @@
     <% end %>
   <% end %>
 
-  <% sub_directory = tile[:ko?] ? "ko_marker_tiles" : "blank_tiles" %>
+  <% sub_directory = "blank_tiles" %>
+  <% if tile[:ko?] %>
+    <% sub_directory = 'ko_marker_tiles' %>
+  <% end %>
+
   <% img_path = "#{base_path}/#{sub_directory}/#{img_filename}.png" %>
 
 <% else %>
-  <% img_filename = tile[:stone] == :black ? "black_stone" : "white_stone" %>
+  <% img_filename = "white_stone" %>
+  <% if tile[:stone] == :black %>
+    <% img_filename = "black_stone" %>
+  <% end %>
   <% img_filename << "_highlighted" if tile[:most_recent_stone?] %>
+
   <% img_path = "#{base_path}/#{img_filename}.png" %>
+
 <% end %>
 
 <td>
   <% container_class = "tile_container" %>
-  <% if tile[:invalid_move?] or opponents_turn %>
+  <% if tile[:invalid_move?] or (viewer_type != :active_player) %>
     <% container_class << " not-clickable" %>
   <% else %>
     <% container_class << " clickable" %>
@@ -48,8 +59,14 @@
       }
     %>
     <%= image_tag(img_path, img_params) %>
-    <%= image_tag("#{base_path}/#{player_color}_stone_preview.png", alt: "preview stone", class: "preview_stone") %>
-  <% end -%>
+    <% if viewer_type != :observer and not tile[:invalid_move?] %>
+      <%= image_tag(
+        "#{base_path}/#{viewer_color}_stone_preview.png",
+        { alt: "preview stone", class: "preview_stone"  }
+        )
+      %>
+    <% end %>
+  <% end %>
 </td>
 
 <% if tile[:horiz_edge] == :right %>

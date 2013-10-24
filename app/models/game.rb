@@ -28,9 +28,6 @@ class Game < ActiveRecord::Base
   end
 
   def player_at_move(move_num)
-    if move_num == 0
-      return nil
-    end
     white_goes_first = (self.handicap and self.handicap > 0)
     black_goes_first = (not white_goes_first)
 
@@ -42,6 +39,16 @@ class Game < ActiveRecord::Base
     end
   end
 
+  def viewer_type(user)
+    if user == self.active_player
+      :active_player
+    elsif user == self.inactive_player
+      :inactive_player
+    else
+      :observer
+    end
+  end
+
   def active_player
     self.player_at_move(self.next_move_num)
   end
@@ -50,9 +57,7 @@ class Game < ActiveRecord::Base
     self.player_at_move(self.active_board.move_num)
   end
 
-  def color(player = nil)
-    player = self.active_player if player == nil
-
+  def player_color(player = nil)
     if player == self.black_player
       :black
     elsif player == self.white_player
@@ -65,7 +70,7 @@ class Game < ActiveRecord::Base
       return
     elsif last_only
       b1, b2 = boards[-1], boards[-2]
-      if self.color(self.player_at_move(b1.move_num)) == :black
+      if self.player_color(self.player_at_move(b1.move_num)) == :black
         black_board, white_board = b1, b2
       else
         black_board, white_board = b2, b1
@@ -75,8 +80,8 @@ class Game < ActiveRecord::Base
       black_boards, white_boards = [], []
       boards.each do |b|
         if b.move_num > 0
-          black_boards << b if self.color(self.player_at_move(b.move_num)) == :black
-          white_boards << b if self.color(self.player_at_move(b.move_num)) == :white
+          black_boards << b if self.player_color(self.player_at_move(b.move_num)) == :black
+          white_boards << b if self.player_color(self.player_at_move(b.move_num)) == :white
         end
       end
       [black_boards, white_boards]
@@ -151,10 +156,8 @@ class Game < ActiveRecord::Base
   def process_move_and_update(pos)
     #### todo still -- process move and determine list of valid moves
 
-    board = self.active_board.replicate_and_update(pos, self.color(self.active_player))
-    board.save
-
-    board
+    next_board = self.active_board.replicate_and_update(pos, self.player_color(self.active_player))
+    next_board.save
   end
 
   def active?
