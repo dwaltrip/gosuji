@@ -62,88 +62,8 @@ class Board < ActiveRecord::Base
     white_stones
   end
 
-  def positions_array
+  def tiles
     Array.new(self.game.board_size**2) { |n| self["pos_#{n}".to_sym] }
-  end
-
-  def get_display_data
-    size = self.game.board_size
-    logger.info '-- inside board.get_display_data -- entering'
-
-    display_data = Array.new(size**2) do |n|
-      pos = self["pos_#{n}".to_sym]
-      tile = {}
-
-      if n % size == 0
-        tile[:horiz_edge] = :left
-      elsif (n + 1) % size == 0
-        tile[:horiz_edge] = :right
-      end
-
-      if n >= (size - 1) * size
-        tile[:vert_edge] = :bottom
-      elsif n < size
-        tile[:vert_edge] = :top
-      end
-
-      tile[:in_center?] = true if tile.empty?
-
-      if pos == false
-        tile[:stone] = :black
-      elsif pos == true
-        tile[:stone] = :white
-      elsif pos != nil
-        logger.fatal "!!!! -- board.get_display_data -- unexpected value for pos_#{n} column!"
-      end
-
-      if tile.has_key?(:stone)
-        tile[:invalid_move?] = true
-      end
-
-      tile
-    end
-
-    self.get_star_points(size).each do |star_point_pos|
-      if not display_data[star_point_pos].has_key? :stone
-        display_data[star_point_pos][:star_point?] = true
-      end
-    end
-
-    if self.ko
-      if display_data[self.ko][:stone]
-        logger.warn "!! -- board.get_display_data -- non-empty field marked as ko, this is wrong!"
-      end
-      display_data[self.ko][:ko?] = true
-    end
-
-    if self.pos
-      display_data[self.pos][:most_recent_stone?] = true
-      if not display_data[self.pos][:stone]
-        logger.warn '!! -- board.get_display_data -- current move was not marked as stone tile properly!'
-      end
-    end
-
-    logger.info '-- inside board.get_display_data -- exiting'
-    display_data
-  end
-
-  ## todo -- star points should be pre-calcuted when server loads and fetched as constants
-  def get_star_points(size)
-    edge_dist = if (size > 9) then 4 else 3 end
-    dists = [edge_dist, size - edge_dist + 1]
-    # all boards have corner star points -- can only add middle edge points if board is odd-numbered
-    if size % 2 == 1
-      dists << (size + 1) / 2
-    end
-
-    star_points = []
-    # we use the 'dists' array for both x and y, as the star points are completely symmetric
-    dists.each do |y|
-      dists.each do |x|
-        star_points << (size * (y-1)) + x-1
-      end
-    end
-    star_points
   end
 
   # for debugging, logging, and console experimentation

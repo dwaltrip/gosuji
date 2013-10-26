@@ -2,6 +2,8 @@ class GamesController < ApplicationController
   before_action :find_game, only: [:show, :join, :update_board]
   before_filter :require_login, :except => :index
 
+  include GamesHelper
+
   def find_game
     @game = Game.find(params[:id])
   end
@@ -42,13 +44,7 @@ class GamesController < ApplicationController
   end
 
   def show
-    @tiles = @game.board_display_data
-    @status_details = @game.status_details
-    @viewer_type = @game.viewer_type(current_user)
-    @viewer_color = @game.player_color(current_user).to_s
-    @active_player_color = @game.player_color(@game.active_player).to_s
-
-    @game.active_board.pretty_print
+    show_setup_helper
   end
 
   def testing_rulebook
@@ -62,7 +58,7 @@ class GamesController < ApplicationController
 
     @rulebook_handler = Rulebook::Handler.new(
       size: @game.board_size,
-      board: board.positions_array
+      board: board.tiles
     )
 
     logger.info '-- games#testing_rulebook -- exiting'
@@ -77,6 +73,59 @@ class GamesController < ApplicationController
 
     logger.info "-- games#update_board -- rendering"
     redirect_to @game
+  end
+
+
+  protected
+
+  def show_setup_helper(rulebook_handler=nil)
+    #if handler == nil
+    #  rulebook_handler = Rulebook::Handler.new(
+    #    size: @game.board_size,
+    #    board: @game.active_board
+    #  )
+    #end
+
+    @tiles = decorated_tiles(
+      @game.active_board,
+      [],
+      @game.viewer(current_user)
+    )
+
+    @status_details = @game.status_details
+    @viewer_color = @game.player_color(current_user).to_s
+    @active_player_color = @game.player_color(@game.active_player).to_s
+
+    @game.active_board.pretty_print
+  end
+
+  def decorated_tiles(board, invalid_moves, viewer)
+    tiles = board.tiles.each_with_index.map do |tile_state, pos|
+      TilePresenter.new(
+        board_size: board.game.board_size,
+        state: tile_state,
+        pos: pos,
+        viewer: viewer
+      )
+    end
+
+    GoApp::STAR_POINTS[board.game.board_size].each do |star_point_pos|
+      tiles[star_point_pos].is_star_point = true
+    end
+
+    if board.pos
+      tiles[board.pos].is_most_recent_move = true
+    end
+
+    if board.ko
+      tiles[board.ko].is_ko = true
+    end
+
+    invalid_moves.each do |pos|
+      tiles[pos].is_invalid_move = true
+    end
+
+    tiles
   end
 
 end

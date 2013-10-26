@@ -21,11 +21,6 @@ class ApplicationController < ActionController::Base
     end
   end
 
-  # todo: don't hardcode this, use information from request to choose best size
-  def tile_pixel_size
-    29
-  end
-
   def require_login
     unless current_user
       session[:login_redirect_url] = request.original_url

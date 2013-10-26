@@ -39,6 +39,17 @@ class Game < ActiveRecord::Base
     end
   end
 
+  def viewer(user)
+    Struct.new(:type, :color).new(
+      viewer_type(user),
+      player_color(user).to_s
+    )
+    #{
+    #  type: viewer_type(current_user),
+    #  color: player_color(current_user).to_s
+    #}
+  end
+
   def viewer_type(user)
     if user == self.active_player
       :active_player
@@ -147,10 +158,6 @@ class Game < ActiveRecord::Base
     Board.initial_board(self)
 
     logger.info '-- exiting game.pregame_setup --'
-  end
-
-  def board_display_data
-    self.active_board.get_display_data
   end
 
   def process_move_and_update(pos)
