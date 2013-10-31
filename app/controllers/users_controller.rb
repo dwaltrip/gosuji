@@ -12,6 +12,7 @@ class UsersController < ApplicationController
   def create
     @user = User.new(params.permit(:username, :email, :password, :password_confirmation))
     if @user.save
+      logger.info "-- users#create: new user created. #{user_log_info}"
       redirect_to games_path, notice: 'Account was created successfully!'
     elsif
       render "new"
@@ -19,7 +20,14 @@ class UsersController < ApplicationController
   end
 
   def show
+    logger.info "-- users#show: #{user_log_info}"
     @started_games = @user.started_games
+  end
+
+  protected
+
+  def user_log_info
+    "user.id= #{@user.id.inspect}, user.username= #{@user.username.inspect}"
   end
 
 end

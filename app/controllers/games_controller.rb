@@ -47,32 +47,25 @@ class GamesController < ApplicationController
     show_setup_helper
   end
 
+  def update_board
+    logger.info "-- games#update_board, before: #{formatted_game_info(@game)}"
+    logger.info "-- games#update_board: params[:new_move]= #{params[:new_move].inspect}"
+    @game.process_move_and_update(params[:new_move])
+
+    redirect_to @game
+  end
+
+
+  # testing and debugging only -- useful for visualing output of rulebook::handler
   def testing_rulebook
-    # testing and debugging only -- useful for visualing output of rulebook::handler
-    logger.info '-- games#testing_rulebook -- entering'
-
     @game = Game.find(params[:id])
-
     board = @game.active_board
-    board.pretty_print
-
     @rulebook_handler = Rulebook::Handler.new(
       size: @game.board_size,
       board: board.tiles
     )
 
-    logger.info '-- games#testing_rulebook -- exiting'
     render file: '/games/testing_rulebook', layout: false
-  end
-
-  def update_board
-    logger.info "-- games#update_board -- entering"
-
-    logger.info "-- params[:new_move] = #{params[:new_move].inspect} --"
-    @game.process_move_and_update(params[:new_move])
-
-    logger.info "-- games#update_board -- rendering"
-    redirect_to @game
   end
 
 
@@ -95,8 +88,7 @@ class GamesController < ApplicationController
     @status_details = @game.status_details
     @viewer_color = @game.player_color(current_user).to_s
     @active_player_color = @game.player_color(@game.active_player).to_s
-
-    @game.active_board.pretty_print
+    logger.info "-- games#show_setup_helper: #{formatted_game_info(@game)}"
   end
 
   def decorated_tiles(board, invalid_moves, viewer)
@@ -117,15 +109,27 @@ class GamesController < ApplicationController
       tiles[board.pos].is_most_recent_move = true
     end
 
+    logger.info "-- games#decorated_tiles: board.ko= #{board.ko.inspect}"
     if board.ko
       tiles[board.ko].is_ko = true
     end
 
+    logger.info "-- games#decorated_tiles: invalid_moves= #{invalid_moves.inspect}"
     invalid_moves.each do |pos|
       tiles[pos].is_invalid_move = true
     end
 
     tiles
+  end
+
+  private
+
+  def formatted_game_info(game)
+    b = game.active_board
+    info_string = "id= #{game.id}, w= #{game.white_player.username}, b= #{game.black_player.username}"
+    info_string << ", size= #{game.board_size}, move_num= #{b.move_num.inspect}, pos= #{b.pos.inspect}"
+    info_string << ", played by= #{game.player_at_move(b.move_num).username}"
+    info_string
   end
 
 end
