@@ -1,5 +1,5 @@
 class GamesController < ApplicationController
-  before_action :find_game, only: [:show, :join, :update_board]
+  before_action :find_game, only: [:show, :join, :update]
   before_filter :require_login, :except => :index
 
   include GamesHelper
@@ -47,9 +47,9 @@ class GamesController < ApplicationController
     show_setup_helper
   end
 
-  def update_board
-    logger.info "-- games#update_board, before: #{formatted_game_info(@game)}"
-    logger.info "-- games#update_board: params[:new_move]= #{params[:new_move].inspect}"
+  def update
+    logger.info "-- games#update, before: #{formatted_game_info(@game)}"
+    logger.info "-- games#update: params[:new_move]= #{params[:new_move].inspect}"
     @game.process_move_and_update(params[:new_move])
 
     redirect_to @game
