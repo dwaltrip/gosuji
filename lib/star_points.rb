@@ -11,7 +11,7 @@ module StarPoints
       end
     xy_coords = [edge_spacing, size - edge_spacing + 1]
 
-    # all boards have corner star points -- can only add middle edge points if board is odd-numbered
+    # all boards have corner star points, but can only add middle edge points if board is odd-numbered
     if size % 2 == 1
       xy_coords << (size + 1) / 2
     end

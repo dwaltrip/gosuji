@@ -22,15 +22,6 @@ module GoApp
   class Application < Rails::Application
     config.active_record.schema_format = :ruby
 
-    # load modules/classes from lib folder
-    config.autoload_paths += Dir["#{config.root}/lib/**/"]
-
-    config.after_initialize do
-      BOARD_SIZES.each do |size|
-        STAR_POINTS[size] = StarPoints::positions_for_board_size(size)
-      end
-    end
-
     # Settings in config/environments/* take precedence over those specified here.
     # Application configuration should go into files in config/initializers
     # -- all .rb files in that directory are automatically loaded.
