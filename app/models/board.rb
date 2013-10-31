@@ -9,7 +9,8 @@ class Board < ActiveRecord::Base
   def self.initial_board(game)
     board = new(
       game: game,
-      move_num: 0
+      move_num: 0,
+      captured_stones: 0
     )
 
     # if handicap, create initial board with pre-placed handicap stones, else leave blank
@@ -18,21 +19,35 @@ class Board < ActiveRecord::Base
     end
 
     board.save
-    board.pretty_print
   end
 
-  def replicate_and_update(pos, color)
+  def tiles
+    Array.new(self.game.board_size**2) { |n| self["pos_#{n}".to_sym] }
+  end
+
+  def replicate_and_update(pos, captured_count, color)
     new_board = self.dup
     new_board.game = self.game
     new_board.move_num = self.move_num + 1
     new_board.pos = pos
     new_board.add_stone(pos, color)
+    new_board.captured_stones = captured_count
+    new_board.ko = nil
 
     new_board
   end
 
   def add_stone(pos, color)
     self["pos_#{pos}".to_sym] = DB_STONE_MAPPINGS[color]
+  end
+
+  def remove_stones(new_captures)
+    logger.info "-- Board.remove_stones: new_captures= #{new_captures.inspect}"
+    new_captures.each do |pos|
+      self["pos_#{pos}"] = GoApp::EMPTY_TILE
+    end
+
+    self.captured_stones += new_captures.size
   end
 
   def time_left
@@ -60,10 +75,6 @@ class Board < ActiveRecord::Base
   def white_stones
     black_stones, white_stones = self.stone_lists
     white_stones
-  end
-
-  def tiles
-    Array.new(self.game.board_size**2) { |n| self["pos_#{n}".to_sym] }
   end
 
   # for debugging, logging, and console experimentation

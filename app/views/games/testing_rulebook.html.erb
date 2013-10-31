@@ -17,29 +17,44 @@
     <tr>
       <% (0...@rulebook_handler.size).each do |x| %>
         <% pos = (y * @rulebook_handler.size) + x %>
-        <td style='width: 20px; height: 20px; text-align: center; color: blue; border: 1px black solid;'>
+
+        <% if @rulebook_handler.colors[@rulebook_handler.group_ids[pos]] %>
+          <% color = "#0000CD" %>
+        <% else %>
+          <% color = "#DB0000" %>
+        <% end %>
+        <% styles = "width: 20px; height: 20px; text-align: center;" %>
+        <% styles << "background-color: #E3E3E3; color: #{color};" %>
+        <% if @rulebook_handler.invalid_moves.include?(pos) %>
+          <% styles << "border: 2px #EEAD03 solid;" %>
+        <% else %>
+          <% styles << "border: 1px black solid;" %>
+        <% end %>
+
+        <%= content_tag :td, style: styles do %>
           <% if @rulebook_handler.group_ids[pos] %>
             <b><%= "#{@rulebook_handler.group_ids[pos]}" %></b>
           <% else %>
             <span style='color: grey; font-size: 0.5em;'><%= "#{pos}" %></span>
           <% end %>
-        </td>
+        <% end %>
+
       <% end %>
     </tr>
   <% end %>
 </table>
 
-<table style='display: inline-block; table-layout: fixed; width: 500px;'>
+<table style='display: inline-block; table-layout: fixed; width: 600px;'>
   <tr>
-    <th style='text-align: center; padding: 0 20px 0 20px; width: 60px;'>Group ID</td>
-    <th style='text-align: center; padding: 0 20px 0 20px; width: 160px;'>Group Members</td>
-    <th style='text-align: center; padding: 0 20px 0 20px; width: 280px;'>Liberties</td>
+    <th style='text-align: center; padding: 0 20px 0 20px; width: 40px;'>Group ID</td>
+    <th style='text-align: center; padding: 0 20px 0 20px; width: 240px;'>Group Members</td>
+    <th style='text-align: center; padding: 0 20px 0 20px; width: 320px;'>Liberties</td>
   </tr>
-  <% @rulebook_handler.group_members.keys.sort.each do |gid| %>
+  <% @rulebook_handler.members.keys.sort.each do |gid| %>
     <tr>
       <td style='padding: 0 20px 0 20px; border: 1px black solid;'><%= gid.inspect %></td>
       <td style='padding: 0 20px 0 20px; word-wrap: break-word; border: 1px black solid;'>
-        <%= "#{@rulebook_handler.group_members[gid].inspect}" %>
+        <%= "#{@rulebook_handler.members[gid].inspect}" %>
       </td>
       <td style='padding: 0 20px 0 20px; word-wrap: break-word; border: 1px black solid;'>
         <%= "#{@rulebook_handler.liberties[gid].inspect}" %>

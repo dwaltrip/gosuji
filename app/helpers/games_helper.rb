@@ -127,7 +127,7 @@ module GamesHelper
     end
 
     def is_ko?
-      @is_ko
+      @is_ko && (@viewer.type == :active_player)
     end
 
     def is_most_recent_move?

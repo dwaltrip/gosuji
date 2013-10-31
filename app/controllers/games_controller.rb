@@ -50,9 +50,16 @@ class GamesController < ApplicationController
   def update
     logger.info "-- games#update, before: #{formatted_game_info(@game)}"
     logger.info "-- games#update: params[:new_move]= #{params[:new_move].inspect}"
-    @game.process_move_and_update(params[:new_move])
 
-    redirect_to @game
+    invalid_moves = @game.play_move_and_get_new_invalid_moves(
+      params[:new_move].to_i,
+      current_user
+    )
+    logger.info "-- games#update: invalid_moves= #{invalid_moves.inspect}"
+    @game.clear_association_cache
+
+    show_setup_helper(invalid_moves)
+    render "show"
   end
 
 
@@ -62,8 +69,10 @@ class GamesController < ApplicationController
     board = @game.active_board
     @rulebook_handler = Rulebook::Handler.new(
       size: @game.board_size,
-      board: board.tiles
+      board: board.tiles,
+      active_player_color: @game.player_color(current_user)
     )
+    @rulebook_handler.calculate_invalid_moves
 
     render file: '/games/testing_rulebook', layout: false
   end
@@ -71,20 +80,14 @@ class GamesController < ApplicationController
 
   protected
 
-  def show_setup_helper(rulebook_handler=nil)
-    #if handler == nil
-    #  rulebook_handler = Rulebook::Handler.new(
-    #    size: @game.board_size,
-    #    board: @game.active_board
-    #  )
-    #end
+  def show_setup_helper(invalid_moves=nil)
+    viewer = @game.viewer(current_user)
 
-    @tiles = decorated_tiles(
-      @game.active_board,
-      [],
-      @game.viewer(current_user)
-    )
+    if (invalid_moves == nil) && (viewer.type != :observer)
+      invalid_moves = @game.get_invalid_moves(current_user)
+    end
 
+    @tiles = decorated_tiles(@game.active_board, invalid_moves, viewer)
     @status_details = @game.status_details
     @viewer_color = @game.player_color(current_user).to_s
     @active_player_color = @game.player_color(@game.active_player).to_s

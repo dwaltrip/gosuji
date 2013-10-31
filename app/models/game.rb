@@ -44,10 +44,6 @@ class Game < ActiveRecord::Base
       viewer_type(user),
       player_color(user).to_s
     )
-    #{
-    #  type: viewer_type(current_user),
-    #  color: player_color(current_user).to_s
-    #}
   end
 
   def viewer_type(user)
@@ -76,6 +72,141 @@ class Game < ActiveRecord::Base
     end
   end
 
+  def status_details
+    black_board, white_board = self.boards_by_color(last_only = true)
+
+    details = {}
+    details[:captures] = {
+      black: black_board ? (black_board.captured_stones || 0) : 0,
+      white: white_board ? (white_board.captured_stones || 0) : 0
+    }
+    if self.time_settings && self.time_settings.length > 0
+      details[:time_left] = {
+        black: black_board ? black_board.time_left : nil,
+        white: white_board ? white_board.time_left : nil
+      }
+    end
+    details
+  end
+
+  def opponent(user)
+    if user == self.black_player
+      self.white_player
+    elsif user == self.white_player
+      self.black_player
+    else
+      logger.warn "-- Game.opponent: #{user.username} is not playing in game id #{self.id}"
+      nil
+    end
+  end
+
+  def pregame_setup(challenger)
+    if challenger.rank.nil? or creator.rank.nil? or challenger.rank == creator.rank
+      coin_flip = rand()
+      challenger_is_black = (coin_flip < 0.5)
+      self.komi = 6.5
+    else
+      challenger_is_black = (challenger.rank < creator.rank)
+      self.handicap = (challenger.rank - creator.rank).abs
+      self.komi = 0.5
+    end
+
+    if challenger_is_black then
+      self.black_player = challenger
+      self.white_player = creator
+    elsif
+      self.black_player = creator
+      self.white_player = challenger
+    end
+
+    self.status = ACTIVE
+    self.save
+    Board.initial_board(self)
+  end
+
+  def play_move_and_get_new_invalid_moves(new_move_pos, current_player)
+    rulebook_handler = self.get_rulebook_handler(current_player)
+
+    rulebook_handler.play_move(new_move_pos)
+    log_msg = "captured_stones= #{rulebook_handler.captured_stones.inspect}"
+    logger.info "-- Game.play_move_and_get_new_invalid_moves: #{log_msg}"
+    rulebook_handler.calculate_invalid_moves
+
+    self.create_next_board(
+      new_move_pos,
+      rulebook_handler.captured_stones,
+      rulebook_handler.ko_position
+    )
+
+    rulebook_handler.invalid_moves
+  end
+
+  def create_next_board(new_move_pos, new_captured_stones, ko_pos)
+    next_board = self.active_board.replicate_and_update(
+      new_move_pos,
+      self.previous_captured_count,
+      self.player_color(self.active_player)
+    )
+
+    logger.info "-- Game.create_next_board: new_captured_stones= #{new_captured_stones.inspect}"
+    next_board.remove_stones(new_captured_stones)
+
+    if ko_pos
+      logger.info "-- Game.create_next_board, we have a ko! ko_pos= #{ko_pos.inspect}"
+      next_board.ko = ko_pos
+    end
+
+    next_board.save
+  end
+
+  def get_invalid_moves(current_player)
+    rulebook_handler = self.get_rulebook_handler(current_player)
+    rulebook_handler.calculate_invalid_moves
+
+    rulebook_handler.invalid_moves
+  end
+
+  def active?
+    self.status == ACTIVE
+  end
+
+  def finished?
+    self.status == FINISHED
+  end
+
+  def not_open?
+    self.status != OPEN
+  end
+
+  def previous_captured_count
+    color = self.player_color(self.active_player)
+    last_black_board, last_white_board = boards_by_color(last_only = true)
+
+    if color == :black
+      board = last_black_board
+    elsif color == :white
+      board = last_white_board
+    end
+
+    if board
+      log_msg = "color= #{color.inspect}, move_num= #{board.move_num.inspect}, pos= #{board.pos.inspect}"
+      log_msg << ", captured_stones= #{board.captured_stones.inspect}"
+      logger.info "-- Game.previous_captured_count: #{log_msg}"
+      board.captured_stones
+    else
+      logger.info "-- Game.previous_captured_count: no previous board for #{color}"
+      0
+    end
+  end
+
+  def get_rulebook_handler(current_player)
+    Rulebook::Handler.new(
+      size: self.board_size,
+      board: self.active_board.tiles,
+      active_player_color: self.player_color(current_player)
+    )
+  end
+
   def boards_by_color(last_only = false)
     if boards.length == 0
       return
@@ -97,86 +228,6 @@ class Game < ActiveRecord::Base
       end
       [black_boards, white_boards]
     end
-  end
-
-  def status_details
-    black_board, white_board = self.boards_by_color(last_only = true)
-
-    details = {}
-    details[:captures] = {
-      black: black_board ? (black_board.captured_stones || 0) : 0,
-      white: white_board ? (white_board.captured_stones || 0) : 0
-    }
-    if self.time_settings && self.time_settings.length > 0
-      details[:time_left] = {
-        black: black_board ? black_board.time_left : nil,
-        white: white_board ? white_board.time_left : nil
-      }
-    end
-    details
-  end
-
-
-  def opponent(user)
-    if user == self.black_player
-      self.white_player
-    elsif user == self.white_player
-      self.black_player
-    else
-      logger.info "-- game.opponent -- #{user.username} is not playing in game id #{self.id}"
-      nil
-    end
-  end
-
-  def pregame_setup(challenger)
-    logger.info '-- entering game.pregame_setup --'
-
-    if challenger.rank.nil? or creator.rank.nil? or challenger.rank == creator.rank
-      coin_flip = rand()
-      challenger_is_black = (coin_flip < 0.5)
-      self.komi = 6.5
-    else
-      challenger_is_black = (challenger.rank < creator.rank)
-      self.handicap = (challenger.rank - creator.rank).abs
-      self.komi = 0.5
-    end
-
-    if challenger_is_black then
-      self.black_player = challenger
-      self.white_player = creator
-    elsif
-      self.black_player = creator
-      self.white_player = challenger
-    end
-
-    logger.info "-- result of coin flip: #{coin_flip}"
-    logger.info "-- black: #{self.black_player.username}, white: #{self.white_player.username}"
-
-    self.status = ACTIVE
-    self.save
-
-    Board.initial_board(self)
-
-    logger.info '-- exiting game.pregame_setup --'
-  end
-
-  def process_move_and_update(pos)
-    #### todo still -- process move and determine list of valid moves
-
-    next_board = self.active_board.replicate_and_update(pos, self.player_color(self.active_player))
-    next_board.save
-  end
-
-  def active?
-    self.status == ACTIVE
-  end
-
-  def finished?
-    self.status == FINISHED
-  end
-
-  def not_open?
-    self.status != OPEN
   end
 
 end
