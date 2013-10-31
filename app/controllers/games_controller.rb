@@ -19,7 +19,7 @@ class GamesController < ApplicationController
     new_game = Game.new(
       description: params[:description],
       creator: current_user,
-      board_size: 19,
+      board_size: params[:board_size],
       status: Game::OPEN,
       mode: Game::NOT_RANKED,
       time_settings: "none"

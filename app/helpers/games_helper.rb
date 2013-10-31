@@ -1,5 +1,12 @@
 module GamesHelper
 
+  def board_size_options
+    options_for_select(
+      (GoApp::MIN_BOARD_SIZE..GoApp::BOARD_SIZE).to_a,
+      [GoApp::BOARD_SIZE]
+    )
+  end
+
   class TilePresenter
     attr_accessor :is_star_point, :is_most_recent_move, :is_ko, :is_invalid_move
 

@@ -8,6 +8,7 @@ Bundler.require(:default, Rails.env)
 
 module GoApp
 
+  MIN_BOARD_SIZE = 7
   BOARD_SIZE = 19
   MAX_BOARD_SIZE = 35
 
