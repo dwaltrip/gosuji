@@ -12,6 +12,7 @@ gem 'bcrypt-ruby', '3.0.1'
 group :development, :test do
   gem 'thin'
   gem 'rspec-rails', '2.13.1'
+  gem 'debugger'
 
   ## used for more advanced testing set-up
   #gem 'guard-rspec', '2.5.0'

@@ -28,9 +28,6 @@ class Game < ActiveRecord::Base
   end
 
   def player_at_move(move_num)
-    if move_num == 0
-      return nil
-    end
     white_goes_first = (self.handicap and self.handicap > 0)
     black_goes_first = (not white_goes_first)
 
@@ -42,6 +39,23 @@ class Game < ActiveRecord::Base
     end
   end
 
+  def viewer(user)
+    Struct.new(:type, :color).new(
+      viewer_type(user),
+      player_color(user).to_s
+    )
+  end
+
+  def viewer_type(user)
+    if user == self.active_player
+      :active_player
+    elsif user == self.inactive_player
+      :inactive_player
+    else
+      :observer
+    end
+  end
+
   def active_player
     self.player_at_move(self.next_move_num)
   end
@@ -50,36 +64,11 @@ class Game < ActiveRecord::Base
     self.player_at_move(self.active_board.move_num)
   end
 
-  def color(player = nil)
-    player = self.active_player if player == nil
-
+  def player_color(player = nil)
     if player == self.black_player
       :black
     elsif player == self.white_player
       :white
-    end
-  end
-
-  def boards_by_color(last_only = false)
-    if boards.length == 0
-      return
-    elsif last_only
-      b1, b2 = boards[-1], boards[-2]
-      if self.color(self.player_at_move(b1.move_num)) == :black
-        black_board, white_board = b1, b2
-      else
-        black_board, white_board = b2, b1
-      end
-      [black_board, white_board]
-    else
-      black_boards, white_boards = [], []
-      boards.each do |b|
-        if b.move_num > 0
-          black_boards << b if self.color(self.player_at_move(b.move_num)) == :black
-          white_boards << b if self.color(self.player_at_move(b.move_num)) == :white
-        end
-      end
-      [black_boards, white_boards]
     end
   end
 
@@ -100,21 +89,18 @@ class Game < ActiveRecord::Base
     details
   end
 
-
   def opponent(user)
     if user == self.black_player
       self.white_player
     elsif user == self.white_player
       self.black_player
     else
-      logger.info "-- game.opponent -- #{user.username} is not playing in game id #{self.id}"
+      logger.warn "-- Game.opponent: #{user.username} is not playing in game id #{self.id}"
       nil
     end
   end
 
   def pregame_setup(challenger)
-    logger.info '-- entering game.pregame_setup --'
-
     if challenger.rank.nil? or creator.rank.nil? or challenger.rank == creator.rank
       coin_flip = rand()
       challenger_is_black = (coin_flip < 0.5)
@@ -133,28 +119,51 @@ class Game < ActiveRecord::Base
       self.white_player = challenger
     end
 
-    logger.info "-- result of coin flip: #{coin_flip}"
-    logger.info "-- black: #{self.black_player.username}, white: #{self.white_player.username}"
-
     self.status = ACTIVE
     self.save
-
     Board.initial_board(self)
-
-    logger.info '-- exiting game.pregame_setup --'
   end
 
-  def board_display_data
-    self.active_board.get_positions(self.board_size)
+  def play_move_and_get_new_invalid_moves(new_move_pos, current_player)
+    rulebook_handler = self.get_rulebook_handler(current_player)
+
+    rulebook_handler.play_move(new_move_pos)
+    log_msg = "captured_stones= #{rulebook_handler.captured_stones.inspect}"
+    logger.info "-- Game.play_move_and_get_new_invalid_moves: #{log_msg}"
+    rulebook_handler.calculate_invalid_moves
+
+    self.create_next_board(
+      new_move_pos,
+      rulebook_handler.captured_stones,
+      rulebook_handler.ko_position
+    )
+
+    rulebook_handler.invalid_moves
   end
 
-  def process_move_and_update(pos)
-    #### todo still -- process move and determine list of valid moves
+  def create_next_board(new_move_pos, new_captured_stones, ko_pos)
+    next_board = self.active_board.replicate_and_update(
+      new_move_pos,
+      self.previous_captured_count,
+      self.player_color(self.active_player)
+    )
 
-    board = self.active_board.replicate_and_update(pos, self.color(self.active_player))
-    board.save
+    logger.info "-- Game.create_next_board: new_captured_stones= #{new_captured_stones.inspect}"
+    next_board.remove_stones(new_captured_stones)
 
-    board
+    if ko_pos
+      logger.info "-- Game.create_next_board, we have a ko! ko_pos= #{ko_pos.inspect}"
+      next_board.ko = ko_pos
+    end
+
+    next_board.save
+  end
+
+  def get_invalid_moves(current_player)
+    rulebook_handler = self.get_rulebook_handler(current_player)
+    rulebook_handler.calculate_invalid_moves
+
+    rulebook_handler.invalid_moves
   end
 
   def active?
@@ -167,6 +176,58 @@ class Game < ActiveRecord::Base
 
   def not_open?
     self.status != OPEN
+  end
+
+  def previous_captured_count
+    color = self.player_color(self.active_player)
+    last_black_board, last_white_board = boards_by_color(last_only = true)
+
+    if color == :black
+      board = last_black_board
+    elsif color == :white
+      board = last_white_board
+    end
+
+    if board
+      log_msg = "color= #{color.inspect}, move_num= #{board.move_num.inspect}, pos= #{board.pos.inspect}"
+      log_msg << ", captured_stones= #{board.captured_stones.inspect}"
+      logger.info "-- Game.previous_captured_count: #{log_msg}"
+      board.captured_stones
+    else
+      logger.info "-- Game.previous_captured_count: no previous board for #{color}"
+      0
+    end
+  end
+
+  def get_rulebook_handler(current_player)
+    Rulebook::Handler.new(
+      size: self.board_size,
+      board: self.active_board.tiles,
+      active_player_color: self.player_color(current_player)
+    )
+  end
+
+  def boards_by_color(last_only = false)
+    if boards.length == 0
+      return
+    elsif last_only
+      b1, b2 = boards[-1], boards[-2]
+      if self.player_color(self.player_at_move(b1.move_num)) == :black
+        black_board, white_board = b1, b2
+      else
+        black_board, white_board = b2, b1
+      end
+      [black_board, white_board]
+    else
+      black_boards, white_boards = [], []
+      boards.each do |b|
+        if b.move_num > 0
+          black_boards << b if self.player_color(self.player_at_move(b.move_num)) == :black
+          white_boards << b if self.player_color(self.player_at_move(b.move_num)) == :white
+        end
+      end
+      [black_boards, white_boards]
+    end
   end
 
 end

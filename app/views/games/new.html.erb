@@ -1,3 +1,5 @@
+<%= render "layouts/back_to_games_list" %>
+
 <h1>New Game</h1>
 
 <%= render 'layouts/form_errors', :form_obj => @game if @game %>
@@ -7,5 +9,7 @@
     <%= label_tag('description', 'Description:') %>
     <%= text_field_tag('description') %>
   </p>
+  <%= label_tag('board_size', 'Size:') %>
+  <%= select_tag('board_size', board_size_options) %>
   <p><%= submit_tag('Submit') %></p>
 <% end %>

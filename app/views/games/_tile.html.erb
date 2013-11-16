@@ -1,57 +1,24 @@
-<%# I should consider extracting the image determination logic into the view method %>
-<%# potentially then this partial would simply render an array of image_path_names %>
-
-<% base_path = "game_board/#{tile_size}px"; %>
-
-<% if tile[:horiz_edge] == :left %>
+<% if tile.on_left_side? %>
   <tr>
-<% end %>
-
-<% unless tile[:stone] %>
-  <% if tile[:in_center?] %>
-    <% img_filename = tile[:star_point?] ? "star_point" : "center" %>
-  <% else %>
-    <% img_filename = '' %>
-
-    <% if tile[:vert_edge] %>
-      <% img_filename << tile[:vert_edge].to_s %>
-    <% end %>
-
-    <% if tile[:horiz_edge] %>
-      <% img_filename << "_" unless img_filename.blank? %>
-      <% img_filename << tile[:horiz_edge].to_s %>
-    <% end %>
-  <% end %>
-
-  <% sub_directory = tile[:ko?] ? "ko_marker_tiles" : "blank_tiles" %>
-  <% img_path = "#{base_path}/#{sub_directory}/#{img_filename}.png" %>
-
-<% else %>
-  <% img_filename = tile[:stone] == :black ? "black_stone" : "white_stone" %>
-  <% img_filename << "_highlighted" if tile[:most_recent_stone?] %>
-  <% img_path = "#{base_path}/#{img_filename}.png" %>
 <% end %>
 
 <td>
   <% container_class = "tile_container" %>
-  <% if tile[:invalid_move?] or opponents_turn %>
+  <% if tile.not_clickable? %>
     <% container_class << " not-clickable" %>
   <% else %>
     <% container_class << " clickable" %>
   <% end %>
 
   <%= content_tag :div, :class => container_class, "data-board-pos" => tile_counter do %>
-    <% img_params = {
-        "data-board-pos" => tile_counter,
-        alt: "#{img_filename.gsub('_', ' ')} tile",
-        class: "board_tile"
-      }
-    %>
-    <%= image_tag(img_path, img_params) %>
-    <%= image_tag("#{base_path}/#{player_color}_stone_preview.png", alt: "preview stone", class: "preview_stone") %>
-  <% end -%>
+    <%= image_tag(tile.display_image_path, { alt: tile.alt_text, class: "board_tile" }) %>
+
+    <% if tile.has_preview_stone? %>
+      <%= image_tag(tile.preview_stone_path, { alt: "preview stone", class: "preview_stone" }) %>
+    <% end %>
+  <% end %>
 </td>
 
-<% if tile[:horiz_edge] == :right %>
+<% if tile.on_right_side? %>
   </tr>
 <% end %>

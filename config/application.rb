@@ -8,8 +8,16 @@ Bundler.require(:default, Rails.env)
 
 module GoApp
 
+  MIN_BOARD_SIZE = 7
   BOARD_SIZE = 19
   MAX_BOARD_SIZE = 35
+
+  EMPTY_TILE = nil
+  BLACK_STONE = false
+  WHITE_STONE = true
+
+  BOARD_SIZES = (7..19).to_a
+  STAR_POINTS = Hash.new
 
   class Application < Rails::Application
     config.active_record.schema_format = :ruby
