@@ -4,23 +4,23 @@
 
 <%= render 'layouts/form_errors', :form_obj => @user if @user %>
 
-<%= form_tag users_path do %>
+<%= form_for @user, url: { :action => :create } do |f| %>
   <p>
-    <%= label_tag 'username', 'Username:' %><br>
-    <%= text_field_tag 'username' %>
+    <%= f.label 'username', 'Username:' %><br>
+    <%= f.text_field 'username' %>
   </p>
   <p>
-    <%= label_tag 'email', 'Email:' %><br>
-    <%= text_field_tag 'email' %>
+    <%= f.label 'email', 'Email:' %><br>
+    <%= f.text_field 'email' %>
   </p>
-    <%= label_tag 'password', 'Password:' %><br>
-    <%= password_field_tag 'password' %>
-  </p>
-  <p>
-    <%= label_tag 'password_confirmation', 'Confirm password:' %><br>
-    <%= password_field_tag 'password_confirmation' %>
+    <%= f.label 'password', 'Password:' %><br>
+    <%= f.password_field 'password' %>
   </p>
   <p>
-    <%= submit_tag 'Submit' %>
+    <%= f.label 'password_confirmation', 'Confirm password:' %><br>
+    <%= f.password_field 'password_confirmation' %>
+  </p>
+  <p>
+    <%= f.submit 'Submit' %>
   </p>
 <% end %>

@@ -7,10 +7,12 @@ class UsersController < ApplicationController
   end
 
   def new
+    @user = User.new
   end
 
   def create
-    @user = User.new(params.permit(:username, :email, :password, :password_confirmation))
+    @user = User.new(params.require(:user).permit(:username, :email, :password, :password_confirmation))
+
     if @user.save
       logger.info "-- users#create: new user created. #{user_log_info}"
       redirect_to games_path, notice: 'Account was created successfully!'
