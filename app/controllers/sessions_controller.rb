@@ -20,13 +20,18 @@ class SessionsController < ApplicationController
 
   def destroy
     user = current_user
-    user_log_info = "user.id= #{user.id.inspect}, user.username= #{user.username.inspect}"
-    logger.info "-- sessions#destroy: log out. #{user_log_info}"
+
+    if user.nil?
+      logger.info "-- sessions#destroy: log out attempted with current_user = nil"
+    else
+      user_log_info = "user.id= #{user.id.inspect}, user.username= #{user.username.inspect}"
+      logger.info "-- sessions#destroy: log out. #{user_log_info}"
+    end
 
     session[:user_id] = nil
     @current_user = nil
 
-    redirect_to root_url, :notice => "Logged out!"
+    redirect_to games_path, :notice => "Logged out!"
   end
 
 end
