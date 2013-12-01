@@ -4,6 +4,8 @@ class Game < ActiveRecord::Base
   belongs_to :creator, :class_name => 'User'
   has_many :boards, -> { order 'move_num ASC' }, inverse_of: :game
 
+  validates :description, length: { maximum: 40 }
+
   # game.status constants
   OPEN = 0
   ACTIVE = 1
