@@ -4,12 +4,12 @@
 
 <%= render 'layouts/form_errors', :form_obj => @game if @game %>
 
-<%= form_tag :action => :create do %>
+<%= form_for @game, url: { :action => :create } do |f| %>
   <p>
-    <%= label_tag('description', 'Description:') %>
-    <%= text_field_tag('description') %>
+    <%= f.label('description', 'Description:') %>
+    <%= f.text_field('description') %>
   </p>
-  <%= label_tag('board_size', 'Size:') %>
-  <%= select_tag('board_size', board_size_options) %>
-  <p><%= submit_tag('Submit') %></p>
+  <%= f.label('board_size', 'Size:') %>
+  <%= f.select('board_size', board_size_options) %>
+  <p><%= f.submit('Submit') %></p>
 <% end %>
