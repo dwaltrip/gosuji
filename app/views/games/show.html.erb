@@ -3,21 +3,7 @@
 <div id='game_container'>
 
   <div id='header_container'>
-    <h1>Game in progress:
-      <%= @game.black_player.username %> vs.
-      <%= @game.white_player.username %>!
-    </h1>
-    <%= link_to "(Refresh game)", @game %>
-
-    <div class='game-status-info'>
-      <p>
-        Current Turn -- <%= @game.active_player.username %>
-        (<%= @active_player_color %>),
-        Move: <%= @game.next_move_num %><br>
-        Captures -- Black: <%= @status_details[:captures][:black] %>,
-                    White: <%= @status_details[:captures][:white] %>
-      </p>
-    </div>
+    <%= render 'game_stats', game: @game, status_details: @status_details, active_color: @active_player_color %>
   </div>
 
   <div id='board_container'>
