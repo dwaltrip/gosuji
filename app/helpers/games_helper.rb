@@ -9,7 +9,10 @@ module GamesHelper
 
   class TilePresenter
     attr_accessor :is_star_point, :is_most_recent_move, :is_ko, :is_invalid_move
+    attr_reader :pos
 
+    # a lot of these params are redundant (board-view level data, not tile level data)
+    # should eliminate this
     def initialize(params)
       @board_size = params[:board_size]
       @state = params[:state]
@@ -34,8 +37,8 @@ module GamesHelper
       "#{display_image_filename.gsub('_', ' ')} tile"
     end
 
-    def not_clickable?
-      (@viewer.type != :active_player) or (not playable?)
+    def clickable?
+      (@viewer.type == :active_player) && playable?
     end
 
     def has_preview_stone?
@@ -50,6 +53,9 @@ module GamesHelper
       (@pos + 1) % @board_size == 0
     end
 
+    def to_s
+      "#<GamesHelper::TilePresenter: @pos=#{@pos.inspect}, @state=#{@state.inspect}>"
+    end
 
     private
 

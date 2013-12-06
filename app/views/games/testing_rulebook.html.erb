@@ -25,7 +25,7 @@
         <% end %>
         <% styles = "width: 20px; height: 20px; text-align: center;" %>
         <% styles << "background-color: #E3E3E3; color: #{color};" %>
-        <% if @rulebook_handler.invalid_moves.include?(pos) %>
+        <% if @rulebook_handler.invalid_moves[@viewer_color].include?(pos) %>
           <% styles << "border: 2px #EEAD03 solid;" %>
         <% else %>
           <% styles << "border: 1px black solid;" %>

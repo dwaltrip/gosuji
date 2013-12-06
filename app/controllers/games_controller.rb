@@ -45,33 +45,30 @@ class GamesController < ApplicationController
   end
 
   def show
-    show_setup_helper
+    render_game_helper
   end
 
   def update
-    logger.info "-- games#update, before: #{formatted_game_info(@game)}"
-    logger.info "-- games#update: params[:new_move]= #{params[:new_move].inspect}"
+    logger.info "-- games#update: #{formatted_game_info(@game)}, params[:new_move]= #{params[:new_move].inspect}"
 
-    invalid_moves = @game.play_move_and_get_new_invalid_moves(
-      params[:new_move].to_i,
-      current_user
-    )
-    logger.info "-- games#update: invalid_moves= #{invalid_moves.inspect}"
-    @game.clear_association_cache
+    game_data = @game.new_move(params[:new_move].to_i, current_user)
+    render_game_helper(game_data)
 
-    show_setup_helper(invalid_moves)
-    render "show"
+    respond_to do |format|
+      format.html { render "show" }
+      format.js
+    end
   end
-
 
   # testing and debugging only -- useful for visualing output of rulebook::handler
   def testing_rulebook
     @game = Game.find(params[:id])
     board = @game.active_board
+    @viewer_color = @game.player_color(current_user)
     @rulebook_handler = Rulebook::Handler.new(
       size: @game.board_size,
       board: board.tiles,
-      active_player_color: @game.player_color(current_user)
+      active_player_color: @viewer_color
     )
     @rulebook_handler.calculate_invalid_moves
 
@@ -81,47 +78,71 @@ class GamesController < ApplicationController
 
   protected
 
-  def show_setup_helper(invalid_moves=nil)
-    viewer = @game.viewer(current_user)
+  def render_game_helper(game_data=nil)
+    user = current_user
+    current_user_color = @game.player_color(current_user)
+    viewer = @game.viewer(user)
 
-    if (invalid_moves == nil) && (viewer.type != :observer)
-      invalid_moves = @game.get_invalid_moves(current_user)
+    if (game_data == nil) && (viewer.type != :observer)
+      game_data = {}
+      game_data[:invalid_moves] = @game.get_invalid_moves(current_user)
+      updated_tiles = nil
+    else
+      updated_tiles = game_data[:captured_stones].union(game_data[:invalid_moves][current_user_color])
+      updated_tiles.add(@game.active_board.pos) if @game.active_board.pos
+
+      previous_board = @game.previous_active_board
+      updated_tiles.add(@game.previous_active_board.pos) if (previous_board && previous_board.pos)
+
+      if @game.active_board.ko
+        updated_tiles.add(@game.active_board.ko)
+      end
     end
+    logger.info "-- render_game_helper -- updated_tiles: #{updated_tiles.inspect}"
+    logger.info "-- render_game_helper -- invalid_tiles: #{game_data[:invalid_moves][current_user_color].inspect}"
 
-    @tiles = decorated_tiles(@game.active_board, invalid_moves, viewer)
+    @tiles = decorated_tiles(
+      @game.active_board,
+      game_data[:invalid_moves][current_user_color],
+      viewer,
+      updated_tiles
+    )
     @status_details = @game.status_details
-    @viewer_color = @game.player_color(current_user).to_s
+    @viewer_color = current_user_color.to_s
     @active_player_color = @game.player_color(@game.active_player).to_s
-    logger.info "-- games#show_setup_helper: #{formatted_game_info(@game)}"
+    logger.info "-- games#prep_work_for_show_game: #{formatted_game_info(@game)}"
   end
 
-  def decorated_tiles(board, invalid_moves, viewer)
-    tiles = board.tiles.each_with_index.map do |tile_state, pos|
-      TilePresenter.new(
-        board_size: board.game.board_size,
-        state: tile_state,
-        pos: pos,
-        viewer: viewer
-      )
+  def decorated_tiles(board, invalid_moves, viewer, updated_tiles=nil)
+    if updated_tiles
+      tiles = {}
+      board.tiles(updated_tiles).each do |pos, tile_state|
+        tiles[pos] = TilePresenter.new(
+          board_size: board.game.board_size,
+          state: tile_state,
+          pos: pos,
+          viewer: viewer
+        )
+      end
+    else
+      tiles = board.tiles.each_with_index.map do |tile_state, pos|
+        TilePresenter.new(
+          board_size: board.game.board_size,
+          state: tile_state,
+          pos: pos,
+          viewer: viewer
+        )
+      end
     end
 
     GoApp::STAR_POINTS[board.game.board_size].each do |star_point_pos|
-      tiles[star_point_pos].is_star_point = true
+      tiles[star_point_pos].is_star_point = true if tiles[star_point_pos]
     end
 
-    if board.pos
-      tiles[board.pos].is_most_recent_move = true
-    end
-
-    logger.info "-- games#decorated_tiles: board.ko= #{board.ko.inspect}"
-    if board.ko
-      tiles[board.ko].is_ko = true
-    end
-
-    logger.info "-- games#decorated_tiles: invalid_moves= #{invalid_moves.inspect}"
-    invalid_moves.each do |pos|
-      tiles[pos].is_invalid_move = true
-    end
+    logger.info "-- games#decorated_tiles -- board.ko= #{board.ko.inspect}, invalid_moves= #{invalid_moves.inspect}"
+    tiles[board.pos].is_most_recent_move = true if (board.pos && tiles[board.pos])
+    tiles[board.ko].is_ko = true if (board.ko && tiles[board.ko])
+    invalid_moves.each { |pos| tiles[pos].is_invalid_move = true if tiles[pos] }
 
     tiles
   end

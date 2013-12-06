@@ -7,9 +7,9 @@
   </div>
 
   <div id='board_container'>
-    <%= form_tag({:action => :update}, { :id => 'board-form' }) do %>
+    <%= form_tag({ :action => :update }, { :id => 'board-form' }) do %>
       <table class='board-table'>
-        <%= render(partial: 'games/tile', collection: @tiles) %>
+        <%= render partial: 'games/tile', collection: @tiles %>
       </table>
     <% end %>
   </div>

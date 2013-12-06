@@ -25,6 +25,12 @@ class Game < ActiveRecord::Base
     boards.last
   end
 
+  def previous_active_board
+    if boards.length >= 2
+      boards[-2]
+    end
+  end
+
   def next_move_num
     active_board.move_num + 1
   end
@@ -126,12 +132,13 @@ class Game < ActiveRecord::Base
     Board.initial_board(self)
   end
 
-  def play_move_and_get_new_invalid_moves(new_move_pos, current_player)
+  def new_move(new_move_pos, current_player)
     rulebook_handler = self.get_rulebook_handler(current_player)
 
     rulebook_handler.play_move(new_move_pos)
     log_msg = "captured_stones= #{rulebook_handler.captured_stones.inspect}"
-    logger.info "-- Game.play_move_and_get_new_invalid_moves: #{log_msg}"
+    logger.info "-- Game.new_move: #{log_msg}"
+
     rulebook_handler.calculate_invalid_moves
 
     self.create_next_board(
@@ -140,7 +147,10 @@ class Game < ActiveRecord::Base
       rulebook_handler.ko_position
     )
 
-    rulebook_handler.invalid_moves
+    {
+      invalid_moves: rulebook_handler.invalid_moves,
+      captured_stones: rulebook_handler.captured_stones
+    }
   end
 
   def create_next_board(new_move_pos, new_captured_stones, ko_pos)
@@ -159,6 +169,7 @@ class Game < ActiveRecord::Base
     end
 
     next_board.save
+    clear_association_cache
   end
 
   def get_invalid_moves(current_player)

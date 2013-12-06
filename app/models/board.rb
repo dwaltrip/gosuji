@@ -21,8 +21,17 @@ class Board < ActiveRecord::Base
     board.save
   end
 
-  def tiles
-    Array.new(self.game.board_size**2) { |n| self["pos_#{n}".to_sym] }
+  def tiles(tile_pos_list=nil)
+    if tile_pos_list == nil
+      Array.new(self.game.board_size**2) { |n| self["pos_#{n}".to_sym] }
+    else
+      tile_data = {}
+      tile_pos_list.each do |tile_pos|
+        tile_data[tile_pos] = self["pos_#{tile_pos}".to_sym]
+      end
+
+      tile_data
+    end
   end
 
   def replicate_and_update(pos, captured_count, color)

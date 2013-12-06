@@ -31,7 +31,7 @@ module Rulebook
 
     def play_move(move_pos)
       Rails.logger.info "-- Rulebook.play_move (entering): move_pos= #{move_pos.inspect}"
-      killing_moves = get_killing_moves
+      killing_moves = get_killing_moves()[@active_player_color]
       @captured_stones = Set.new
 
       if killing_moves.key?(move_pos)
@@ -57,54 +57,59 @@ module Rulebook
     private
 
     def find_invalid_moves
-      potential_groups = single_liberty_groups.select do |group_id, libs|
-        @colors[group_id] == @active_player_color
-      end
-
       killing_moves = get_killing_moves
-      invalid_moves = Set.new
+      invalid_moves = { @active_player_color => Set.new, @enemy_color => Set.new }
 
-      potential_groups.each do |potential_id, libs|
-        only_liberty_pos = libs.to_a.pop
+      single_liberty_groups.each do |single_lib_group_id, libs|
+        color = @colors[single_lib_group_id]
+        pos_of_only_liberty = libs.to_a.pop
         move_would_result_in_zero_libs = true
 
-        unless killing_moves.key?(only_liberty_pos)
-          neighbors(only_liberty_pos).each do |neighbor_pos|
-            neighbor_id = @group_ids[neighbor_pos]
+        neighbors(pos_of_only_liberty).each do |neighbor_pos|
+          neighbor_id = @group_ids[neighbor_pos]
 
-            # if neighbor_pos is part of a group that isnt current potential group
-            if neighbor_id && neighbor_id != potential_id
-              same_color = (@colors[neighbor_id] == @active_player_color)
-              more_than_one_lib = (@liberties[neighbor_id].size > 1)
+          # if neighbor_pos is part of different group, then check more closely
+          if neighbor_id && neighbor_id != single_lib_group_id
+            same_color = (@colors[neighbor_id] == color)
+            more_than_one_lib = (@liberties[neighbor_id].size > 1)
 
-              if same_color && more_than_one_lib
-                move_would_result_in_zero_libs = false
-              end
-            # or if there is another empty spot next to the liberty
-            elsif @board[neighbor_pos] == EMPTY
+            # valid if filling in this single lib connects to friendly group with two or more libs
+            if same_color && more_than_one_lib
               move_would_result_in_zero_libs = false
             end
+          # also valid if filling in the single lib places group next to another lib (EMPTY tile)
+          elsif @board[neighbor_pos] == EMPTY
+            move_would_result_in_zero_libs = false
           end
+        end
 
-          if move_would_result_in_zero_libs
-            invalid_moves.add(only_liberty_pos)
-          end
+        # if would result in zero libs, and does not kill an enemy group --> invalid move
+        if move_would_result_in_zero_libs && (not killing_moves[color].key?(pos_of_only_liberty))
+          invalid_moves[color].add(pos_of_only_liberty)
         end
       end
 
       @board.each_with_index do |tile_type, pos|
         if tile_type == EMPTY
           neighbor_tiles = neighbor_tile_types(pos)
-          enemy_neighbors = neighbor_tiles.count { |tile| tile == @enemy_color }
-          completely_surrounded = (enemy_neighbors == neighbor_tiles.size)
 
-          if completely_surrounded && (not killing_moves.key?(pos))
-            invalid_moves.add(pos)
+          enemy_neighbor_count = neighbor_tiles.count { |tile| tile == @enemy_color }
+          surrounded_by_enemies = (enemy_neighbor_count == neighbor_tiles.size)
+
+          friendly_neighbor_count = neighbor_tiles.count { |tile| tile == @active_player_color }
+          surrounded_by_friends = (friendly_neighbor_count == neighbor_tiles.size)
+
+          if surrounded_by_enemies && (not killing_moves[@active_player_color].key?(pos))
+            invalid_moves[@active_player_color].add(pos)
+          elsif surrounded_by_friends && (not killing_moves[@enemy_color].key?(pos))
+            invalid_moves[@enemy_color].add(pos)
           end
         end
       end
 
-      invalid_moves
+      # return a hash with :white/:black as keys, instead of board DB table color vals (true/false)
+      { TILE_VALUES_REVERSE[@active_player_color] => invalid_moves[@active_player_color],
+        TILE_VALUES_REVERSE[@enemy_color] => invalid_moves[@enemy_color] }
     end
 
     def capture_group(group)
@@ -130,13 +135,20 @@ module Rulebook
     end
 
     def get_killing_moves
-      # hash value is a set of group ids, as some moves can kill multiple groups
-      killing_moves = Hash.new { |hash, key| hash[key] = Set.new }
+      # hash values are sets of group ids, as some moves can kill multiple groups
+      killing_moves = {
+        @active_player_color => Hash.new { |hash, key| hash[key] = Set.new },
+        @enemy_color => Hash.new { |hash, key| hash[key] = Set.new }
+      }
 
-      @liberties.each do |group_id, libs|
-        if (libs.size == 1) && (@colors[group_id] == @enemy_color)
-          killing_move_pos = libs.to_a.pop
-          killing_moves[killing_move_pos].add(group_id)
+      # tiles that are the only lib for a group are killing moves for the opponent (of that group)
+      single_liberty_groups.each do |group_id, libs|
+        killing_move_pos = libs.to_a.pop
+
+        if @colors[group_id] == @enemy_color
+          killing_moves[@active_player_color][killing_move_pos].add(group_id)
+        else
+          killing_moves[@enemy_color][killing_move_pos].add(group_id)
         end
       end
 
@@ -242,6 +254,9 @@ module Rulebook
         end
       end
     end
+
+    # a neighbor is a directly adjacent tile (horizontal and vertical, not diagonal)
+    # middle tiles have 4, edges have 3, corners only have 2
 
     def neighbors(pos)
       neighbors_hash(pos).values
