@@ -29,3 +29,6 @@ doc/
 
 # Ignore zz-testing-random directory
 /zzz-misc-random
+
+# Ignore application configuration
+/config/application.yml
