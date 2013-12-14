@@ -1,14 +1,12 @@
 console.log('beginnig to render update.js.erb');
 
-<% header_partial_vars = { game: @game, status_details: @status_details, active_color: @active_player_color } %>
-$('#header_container').html('<%= j render('game_stats', header_partial_vars) %>');
+$('#header_container').html('<%= j render('game_stats', @header_inputs) %>');
 
 <% @tiles.each do |pos, tile| %>
-  var new_tile = $('<%= j render('tile', tile: tile, tile_counter: pos) %>').find('.tile_container');
+  var new_tile = $('<%= j render('tile', tile: tile) %>').find('.tile_container');
   $('<%= "#tile-#{pos}" %>').html(new_tile[0].outerHTML);
 <% end %>
 
-$('div.tile_container').removeClass('clickable');
-$('div.tile_container').off('click.new_move');
+window.move_num = <%= @game.move_num %>;
 
 console.log('finished updating via ajax');

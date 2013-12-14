@@ -16,12 +16,16 @@ module StarPoints
       xy_coords << (size + 1) / 2
     end
 
+    star_points = Set.new
+
     # use 'xy_coords' for both dimensions as the star points are completely symmetrical
-    xy_coords.flat_map do |y|
-      xy_coords.map do |x|
-        convert_coords_to_flat_array_index(x, y, size)
+    xy_coords.each do |y|
+      xy_coords.each do |x|
+        star_points.add convert_coords_to_flat_array_index(x, y, size)
       end
     end
+
+    star_points
   end
 
   def convert_coords_to_flat_array_index(x, y, size)

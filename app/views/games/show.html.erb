@@ -3,7 +3,7 @@
 <div id='game_container'>
 
   <div id='header_container'>
-    <%= render 'game_stats', game: @game, status_details: @status_details, active_color: @active_player_color %>
+    <%= render 'game_stats', @header_inputs %>
   </div>
 
   <div id='board_container'>
@@ -16,4 +16,9 @@
 
 </div>
 
-<% javascript 'games.js' %>
+<%= javascript_tag do %>
+  window.game_id = '<%= @game.id %>';
+  window.move_num = '<%= @game.move_num %>';
+<% end %>
+
+<% javascript 'games.js', 'event_emitter.js', 'sockjs_client', 'sockjs-0.3.min.js' %>

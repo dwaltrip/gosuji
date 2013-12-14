@@ -6,6 +6,8 @@ class Game < ActiveRecord::Base
 
   validates :description, length: { maximum: 40 }
 
+  attr_reader :just_played_new_move
+
   # game.status constants
   OPEN = 0
   ACTIVE = 1
@@ -18,21 +20,39 @@ class Game < ActiveRecord::Base
   scope :open, lambda { where(:status => OPEN) }
   scope :active, lambda { where(:status => ACTIVE) }
 
-
   ##-- game model instance methods --##
 
   def active_board
     boards.last
   end
 
-  def previous_active_board
-    if boards.length >= 2
+  def previous_board
+    if boards.count >= 2
       boards[-2]
     end
   end
 
+  def move_num
+    active_board.move_num
+  end
+
   def next_move_num
     active_board.move_num + 1
+  end
+
+  def tiles_to_render(player)
+    if @just_played_new_move
+      tiles_to_update = self.get_rulebook.tiles_to_update(self.player_color(player))
+
+      # rulebook doesnt have knowledge of previous board_states
+      if self.previous_board && self.previous_board.pos
+        tiles_to_update.add(self.previous_board.pos)
+      end
+
+      self.active_board.pos_nums_and_tile_states(tiles_to_update)
+    else
+      self.active_board.pos_nums_and_tile_states
+    end
   end
 
   def player_at_move(move_num)
@@ -50,7 +70,7 @@ class Game < ActiveRecord::Base
   def viewer(user)
     Struct.new(:type, :color).new(
       viewer_type(user),
-      player_color(user).to_s
+      player_color(user)
     )
   end
 
@@ -78,6 +98,16 @@ class Game < ActiveRecord::Base
     elsif player == self.white_player
       :white
     end
+  end
+
+  def white_capture_count
+    @status_details ||= status_details
+    @status_details[:captures][:white]
+  end
+
+  def black_capture_count
+    @status_details ||= status_details
+    @status_details[:captures][:black]
   end
 
   def status_details
@@ -133,50 +163,44 @@ class Game < ActiveRecord::Base
   end
 
   def new_move(new_move_pos, current_player)
-    rulebook_handler = self.get_rulebook_handler(current_player)
+    rulebook = self.get_rulebook
+    rulebook.play_move(new_move_pos, self.player_color(current_player))
+    @just_played_new_move = true
 
-    rulebook_handler.play_move(new_move_pos)
-    log_msg = "captured_stones= #{rulebook_handler.captured_stones.inspect}"
-    logger.info "-- Game.new_move: #{log_msg}"
+    self.create_next_board(new_move_pos)
 
-    rulebook_handler.calculate_invalid_moves
-
-    self.create_next_board(
-      new_move_pos,
-      rulebook_handler.captured_stones,
-      rulebook_handler.ko_position
-    )
-
-    {
-      invalid_moves: rulebook_handler.invalid_moves,
-      captured_stones: rulebook_handler.captured_stones
-    }
+    logger.info "-- Game.new_move -- rulebook.captured_stones: #{rulebook.captured_stones.inspect}"
+    logger.info "-- Game.new_move -- rulebook.invalid_moves: #{rulebook.invalid_moves.inspect}"
   end
 
-  def create_next_board(new_move_pos, new_captured_stones, ko_pos)
+  def create_next_board(new_move_pos)
     next_board = self.active_board.replicate_and_update(
       new_move_pos,
       self.previous_captured_count,
       self.player_color(self.active_player)
     )
+    next_board.remove_stones(self.get_rulebook.captured_stones)
 
-    logger.info "-- Game.create_next_board: new_captured_stones= #{new_captured_stones.inspect}"
-    next_board.remove_stones(new_captured_stones)
-
-    if ko_pos
-      logger.info "-- Game.create_next_board, we have a ko! ko_pos= #{ko_pos.inspect}"
-      next_board.ko = ko_pos
-    end
-
+    # playing a new move, ko position can only occur for the waiting player (inactive player)
+    ko_pos = self.get_rulebook.ko_position(self.player_color(self.inactive_player))
+    next_board.ko = ko_pos if ko_pos
     next_board.save
+
+    # reset board query caches (should look into this more)
     clear_association_cache
   end
 
-  def get_invalid_moves(current_player)
-    rulebook_handler = self.get_rulebook_handler(current_player)
-    rulebook_handler.calculate_invalid_moves
+  def invalid_moves(player=nil)
+    if player != nil
+      self.get_rulebook.invalid_moves[self.player_color(player)]
+    else
+      self.get_rulebook.invalid_moves
+    end
+  end
 
-    rulebook_handler.invalid_moves
+  def get_ko_position(player)
+    logger.info "-- Game.get_ko_position -- self.get_rulebook.ko_position: #{self.get_rulebook.ko_position.inspect}"
+    self.get_rulebook.ko_position(self.player_color(player))
   end
 
   def active?
@@ -212,12 +236,17 @@ class Game < ActiveRecord::Base
     end
   end
 
-  def get_rulebook_handler(current_player)
-    Rulebook::Handler.new(
-      size: self.board_size,
-      board: self.active_board.tiles,
-      active_player_color: self.player_color(current_player)
-    )
+  def get_rulebook(force_rebuild=false)
+    if (not @rulebook) or force_rebuild
+      params = { size: self.board_size, board: self.active_board.tiles }
+      @rulebook = Rulebook::Handler.new(params)
+
+      if (not @just_played_new_move) && self.active_board.ko
+        @rulebook.set_ko_position(self.active_board.ko, self.player_color(self.active_player))
+      end
+    end
+
+    @rulebook
   end
 
   def boards_by_color(last_only = false)

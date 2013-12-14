@@ -23,6 +23,7 @@
     <%= yield(:extra_nav_links) %>
   </div>
 
+
   <% if flash[:notice].present? %>
     <p class='notice'><b>Notice:</b> <%= flash[:notice] %></p>
   <% end %>
@@ -31,7 +32,13 @@
     <p class='alert'><b>Alert:</b> <%= flash[:alert] %></p>
   <% end %>
 
+
   <%= yield %>
+
+
+  <%= javascript_tag do %>
+    window.sockjs_url = "<%= j ENV['NODEJS_URL'] %>";
+  <% end %>
 
   <%= yield(:javascript_tags) %>
 
