@@ -1,6 +1,11 @@
 console.log('Successfully loaded games.js')
 
 var ready = function() {
+    add_move_handler();
+
+};
+
+function add_move_handler() {
     console.log('Adding click handler to clickable tiles.');
 
     $('div.tile_container.clickable').on('click.new_move', function() {
@@ -21,5 +26,7 @@ var ready = function() {
     }
 };
 
-$(document).ready(ready);
-$(document).on('page:load', ready);
+$(document).ready(function() {
+    console.log('$(document).ready(function() { ... }) -- inside callback');
+    ready();
+});
