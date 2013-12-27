@@ -38,35 +38,36 @@ describe Rulebook do
     end
 
     it "identifies the correct members for each group of stones" do
-      rulebook.members.size.should == correct_groups.size
+      expect(rulebook.members.size).to eq(correct_groups.size)
 
       correct_groups.each do |correct_group|
         random_group_member = correct_group.members.to_a.pop
         group_id = rulebook.group_ids[random_group_member]
 
         correct_group.members.each do |stone_pos|
-          rulebook.group_ids[stone_pos].should == group_id
+          expect(rulebook.group_ids[stone_pos]).to eq(group_id)
         end
 
-        rulebook.members[group_id].should == correct_group.members
+        expect(rulebook.members[group_id]).to eq(correct_group.members)
       end
     end
 
     it "assigns correct liberties for each group" do
-      rulebook.liberties.size.should == correct_groups.size
+      expect(rulebook.liberties.size).to eq(correct_groups.size)
 
       correct_groups.each do |correct_group|
         group_id = rulebook.group_ids[correct_group.members.to_a.pop]
-        rulebook.liberties[group_id].should == correct_group.liberties
+        expect(rulebook.liberties[group_id]).to eq(correct_group.liberties)
       end
     end
 
     it "assigns correct color for each group" do
-      rulebook.colors.size.should == correct_groups.size
+      expect(rulebook.colors.size).to eq(correct_groups.size)
 
       correct_groups.each do |correct_group|
         group_id = rulebook.group_ids[correct_group.members.to_a.pop]
         rulebook.colors[group_id].should == correct_group.color
+        expect(rulebook.colors[group_id]).to eq(correct_group.color)
       end
     end
   end
@@ -83,8 +84,8 @@ describe Rulebook do
           '|_|w|_|b|',
           '|w|w|_|_|'
         ])
-        rulebook.invalid_moves[:white].to_a.should == [7]
-        rulebook.invalid_moves[:black].to_a.should == [8]
+        expect(rulebook.invalid_moves[:white].to_a).to match_array([7])
+        expect(rulebook.invalid_moves[:black].to_a).to match_array([8])
       end
 
       it "marks single corner tiles as invalid for opposing color" do
@@ -94,8 +95,8 @@ describe Rulebook do
           '|w|_|_|b|',
           '|_|w|b|_|'
         ])
-        rulebook.invalid_moves[:white].to_a.sort.should == [3, 15]
-        rulebook.invalid_moves[:black].to_a.sort.should == [0, 12]
+        expect(rulebook.invalid_moves[:white].to_a).to match_array([3, 15])
+        expect(rulebook.invalid_moves[:black].to_a).to match_array([0, 12])
       end
 
       it "marks single center tiles the enemy as invalid for opposing color" do
@@ -106,8 +107,8 @@ describe Rulebook do
           '|_|w|_|w|_|',
           '|_|w|w|_|_|'
         ])
-        rulebook.invalid_moves[:white].to_a.should == [6]
-        rulebook.invalid_moves[:black].to_a.should == [17]
+        expect(rulebook.invalid_moves[:white].to_a).to match_array([6])
+        expect(rulebook.invalid_moves[:black].to_a).to match_array([17])
       end
 
       it "DOES NOT mark tile groups of size 2 (or more) as invalid" do
@@ -119,8 +120,8 @@ describe Rulebook do
           '|_|w|_|_|w|_|',
           '|_|w|w|w|_|_|'
         ])
-        rulebook.invalid_moves[:white].should be_empty
-        rulebook.invalid_moves[:black].should be_empty
+        expect(rulebook.invalid_moves[:white]).to be_empty
+        expect(rulebook.invalid_moves[:black]).to be_empty
       end
     end
 
@@ -138,8 +139,8 @@ describe Rulebook do
           '|w|w|w|w|_|b|w|'
         ])
 
-        rulebook.invalid_moves[:white].to_a.sort.should == [5, 34]
-        rulebook.invalid_moves[:black].to_a.should == [37]
+        expect(rulebook.invalid_moves[:white].to_a).to match_array([5, 34])
+        expect(rulebook.invalid_moves[:black].to_a).to match_array([37])
       end
 
       it "DOES NOT mark the liberty tiles of groups with more than 1 liberty as invalid" do
@@ -152,8 +153,8 @@ describe Rulebook do
           '|w|_|_|w|b|b|_|',
           '|w|w|w|w|b|_|w|'
         ])
-        rulebook.invalid_moves[:white].should be_empty
-        rulebook.invalid_moves[:black].should be_empty
+        expect(rulebook.invalid_moves[:white]).to be_empty
+        expect(rulebook.invalid_moves[:black]).to be_empty
       end
 
       it "marks the shared liberty of multiple same-colored single liberty groups as invalid" do
@@ -167,8 +168,8 @@ describe Rulebook do
           '|_|w|b|b|w|w|w|_|',
           '|_|w|b|w|w|_|_|_|'
         ])
-        rulebook.invalid_moves[:white].to_a.should == [4]
-        rulebook.invalid_moves[:black].to_a.should == [43]
+        expect(rulebook.invalid_moves[:white].to_a).to match_array([4])
+        expect(rulebook.invalid_moves[:black].to_a).to match_array([43])
       end
 
       it "DOES NOT mark the liberty tile as invalid when it connects friendly group with multiple liberties" do
@@ -182,8 +183,8 @@ describe Rulebook do
           '|_|w|b|b|w|w|w|_|',
           '|_|w|b|w|w|_|_|_|'
         ])
-        rulebook.invalid_moves[:white].should be_empty
-        rulebook.invalid_moves[:black].should be_empty
+        expect(rulebook.invalid_moves[:white]).to be_empty
+        expect(rulebook.invalid_moves[:black]).to be_empty
       end
     end
   end
