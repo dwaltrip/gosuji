@@ -19,6 +19,8 @@ module GoApp
   BOARD_SIZES = (7..19).to_a
   STAR_POINTS = Hash.new
 
+  TILE_PIXEL_SIZE = 29
+
   class Application < Rails::Application
     config.active_record.schema_format = :ruby
 

@@ -1,0 +1,12 @@
+console.log('beginnig to render update.js.erb');
+
+$('#header_container').html('<%= j render('game_stats', @header_inputs) %>');
+
+<% @tiles.each do |pos, tile| %>
+  var new_tile = $('<%= j render('tile', tile: tile) %>').find('.tile_container');
+  $('<%= "#tile-#{pos}" %>').html(new_tile[0].outerHTML);
+<% end %>
+
+window.move_num = <%= @game.move_num %>;
+
+console.log('finished updating via ajax');

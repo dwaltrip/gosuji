@@ -2,8 +2,6 @@ class GamesController < ApplicationController
   before_action :find_game, only: [:show, :join, :update]
   before_filter :require_login, :except => :index
 
-  include GamesHelper
-
   def find_game
     @game = Game.find(params[:id])
   end
@@ -45,82 +43,82 @@ class GamesController < ApplicationController
   end
 
   def show
-    show_setup_helper
+    logger.info "-- games#show -- #{formatted_game_info(@game)}"
+    render_game_helper
   end
 
   def update
-    logger.info "-- games#update, before: #{formatted_game_info(@game)}"
-    logger.info "-- games#update: params[:new_move]= #{params[:new_move].inspect}"
+    logger.info "-- games#update -- #{formatted_game_info(@game)}, params[:new_move]= #{params[:new_move].inspect}"
 
-    invalid_moves = @game.play_move_and_get_new_invalid_moves(
-      params[:new_move].to_i,
-      current_user
-    )
-    logger.info "-- games#update: invalid_moves= #{invalid_moves.inspect}"
-    @game.clear_association_cache
+    @game.new_move(Integer(params[:new_move], 10), current_user)
+    render_game_helper
 
-    show_setup_helper(invalid_moves)
-    render "show"
+    opponent = @game.opponent(current_user)
+    opponent_tiles = decorated_tiles(opponent).map do |pos, tile|
+      { pos: pos,
+        html: tile.to_html(@game.viewer(opponent)) }
+    end
+
+    # publish updated info to listener on Node.js server which then updates opponent client via websockets
+    # will later add in very similar functionality for any observing users (not playing in the game)
+    $redis.publish 'game-updates', ActiveSupport::JSON.encode({
+      room_id: "game-#{@game.id}",
+      move_id: params[:move_id],
+      tiles: opponent_tiles,
+      invalid_moves: @game.invalid_moves(opponent),
+      header_html: render_to_string(partial: 'game_stats', locals: @header_inputs)
+    })
+
+    respond_to do |format|
+      format.html { render "show" }
+      format.js
+    end
   end
-
 
   # testing and debugging only -- useful for visualing output of rulebook::handler
   def testing_rulebook
     @game = Game.find(params[:id])
-    board = @game.active_board
-    @rulebook_handler = Rulebook::Handler.new(
+    @rulebook = Rulebook::Handler.new(
       size: @game.board_size,
-      board: board.tiles,
+      board: @game.active_board.tiles,
       active_player_color: @game.player_color(current_user)
     )
-    @rulebook_handler.calculate_invalid_moves
-
     render file: '/games/testing_rulebook', layout: false
   end
 
-
   protected
 
-  def show_setup_helper(invalid_moves=nil)
-    viewer = @game.viewer(current_user)
-
-    if (invalid_moves == nil) && (viewer.type != :observer)
-      invalid_moves = @game.get_invalid_moves(current_user)
-    end
-
-    @tiles = decorated_tiles(@game.active_board, invalid_moves, viewer)
-    @status_details = @game.status_details
-    @viewer_color = @game.player_color(current_user).to_s
-    @active_player_color = @game.player_color(@game.active_player).to_s
-    logger.info "-- games#show_setup_helper: #{formatted_game_info(@game)}"
+  def render_game_helper
+    @tiles = decorated_tiles(current_user)
+    @header_inputs = { game: @game, active_color: @game.player_color(@game.active_player).to_s }
+    logger.info "-- games#render_game_helper -- @game.invalid_moves: #{@game.invalid_moves.inspect}"
   end
 
-  def decorated_tiles(board, invalid_moves, viewer)
-    tiles = board.tiles.each_with_index.map do |tile_state, pos|
-      TilePresenter.new(
-        board_size: board.game.board_size,
+  def decorated_tiles(player)
+    if @game.just_played_new_move
+      tiles = {}
+    else
+      tiles = Array.new(@game.board_size ** 2)
+    end
+
+    viewer = @game.viewer(player)
+    @game.tiles_to_render(player).each do |pos, tile_state|
+      tiles[pos] = TilePresenter.new(
+        board_size: @game.board_size,
         state: tile_state,
         pos: pos,
-        viewer: viewer
+        viewer: viewer,
+        invalid_moves: @game.invalid_moves
       )
     end
+    log_msg = "#{player.username.inspect} as #{@game.player_color(player).inspect} -- tiles.length: #{tiles.length}"
+    logger.info "-- games#decorated_tiles -- #{log_msg}"
 
-    GoApp::STAR_POINTS[board.game.board_size].each do |star_point_pos|
-      tiles[star_point_pos].is_star_point = true
+    if @game.active_board.pos && tiles[@game.active_board.pos]
+      tiles[@game.active_board.pos].is_most_recent_move = true
     end
-
-    if board.pos
-      tiles[board.pos].is_most_recent_move = true
-    end
-
-    logger.info "-- games#decorated_tiles: board.ko= #{board.ko.inspect}"
-    if board.ko
-      tiles[board.ko].is_ko = true
-    end
-
-    logger.info "-- games#decorated_tiles: invalid_moves= #{invalid_moves.inspect}"
-    invalid_moves.each do |pos|
-      tiles[pos].is_invalid_move = true
+    if @game.get_ko_position(player) && tiles[@game.get_ko_position(player)]
+      tiles[@game.get_ko_position(player)].is_ko = true
     end
 
     tiles

@@ -3,20 +3,18 @@
 <% end %>
 
 <td>
-  <% container_class = "tile_container" %>
-  <% if tile.not_clickable? %>
-    <% container_class << " not-clickable" %>
-  <% else %>
-    <% container_class << " clickable" %>
-  <% end %>
+  <div id='<%= "tile-#{tile.pos}" %>'>
+    <% container_class = "tile_container #{tile.tile_type}_tile" %>
+    <% container_class << " clickable" if tile.clickable? %>
 
-  <%= content_tag :div, :class => container_class, "data-board-pos" => tile_counter do %>
-    <%= image_tag(tile.display_image_path, { alt: tile.alt_text, class: "board_tile" }) %>
+    <%= content_tag :div, :class => container_class, "data-board-pos" => tile.pos do %>
+      <%= image_tag(tile.display_image_path, { alt: tile.alt_text, class: "board_tile" }) %>
 
-    <% if tile.has_preview_stone? %>
-      <%= image_tag(tile.preview_stone_path, { alt: "preview stone", class: "preview_stone" }) %>
+      <% if tile.has_preview_stone? %>
+        <%= image_tag(tile.preview_stone_path, { alt: "preview stone", class: "preview_stone" }) %>
+      <% end %>
     <% end %>
-  <% end %>
+  </div>
 </td>
 
 <% if tile.on_right_side? %>

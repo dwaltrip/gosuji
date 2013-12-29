@@ -3,29 +3,22 @@
 <div id='game_container'>
 
   <div id='header_container'>
-    <h1>Game in progress:
-      <%= @game.black_player.username %> vs.
-      <%= @game.white_player.username %>!
-    </h1>
-    <%= link_to "(Refresh game)", @game %>
-
-    <div class='game-status-info'>
-      <p>
-        Current Turn -- <%= @game.active_player.username %>
-        (<%= @active_player_color %>),
-        Move: <%= @game.next_move_num %><br>
-        Captures -- Black: <%= @status_details[:captures][:black] %>,
-                    White: <%= @status_details[:captures][:white] %>
-      </p>
-    </div>
+    <%= render 'game_stats', @header_inputs %>
   </div>
 
   <div id='board_container'>
-    <%= form_tag({:action => :update}, { :id => 'board-form' }) do %>
+    <%= form_tag({ :action => :update }, { :id => 'board-form' }) do %>
       <table class='board-table'>
-        <%= render(partial: 'games/tile', collection: @tiles) %>
+        <%= render partial: 'games/tile', collection: @tiles %>
       </table>
     <% end %>
   </div>
 
 </div>
+
+<%= javascript_tag do %>
+  window.game_id = '<%= @game.id %>';
+  window.move_num = '<%= @game.move_num %>';
+<% end %>
+
+<% javascript 'games.js', 'event_emitter.js', 'sockjs_client', 'sockjs-0.3.min.js' %>

@@ -1,10 +1,12 @@
 class ApplicationController < ActionController::Base
   around_filter :global_request_logging
+  #after_filter :catch_js_response_errors
+
   # Prevent CSRF attacks by raising an exception.
   # For APIs, you may want to use :null_session instead.
   protect_from_forgery with: :exception
 
-  helper_method :current_user, :tile_pixel_size
+  helper_method :current_user
 
   private
 
@@ -29,6 +31,14 @@ class ApplicationController < ActionController::Base
     end
   end
 
+  def catch_js_response_errors
+    logger.info "-- after_filter: catch_js_response_errors -- response.content_type: #{response.content_type}"
+
+    if response.content_type == 'text/javascript'
+      literal_js = (response.body.strip.inspect)[1..-2]
+      response.body = "try { eval(\"#{literal_js}\"); }\ncatch (e) { console.log(e); }"
+    end
+  end
 
   def global_request_logging
     verbose = false

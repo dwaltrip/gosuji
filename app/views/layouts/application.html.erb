@@ -3,7 +3,9 @@
 <head>
   <title>GoApp</title>
   <%= stylesheet_link_tag    "application", media: "all", "data-turbolinks-track" => true %>
+  <%#= stylesheet_link_tag    "application", media: "all" %>
   <%= javascript_include_tag "application", "data-turbolinks-track" => true %>
+  <%#= javascript_include_tag "application" %>
   <%= csrf_meta_tags %>
 </head>
 <body>
@@ -21,6 +23,7 @@
     <%= yield(:extra_nav_links) %>
   </div>
 
+
   <% if flash[:notice].present? %>
     <p class='notice'><b>Notice:</b> <%= flash[:notice] %></p>
   <% end %>
@@ -29,7 +32,15 @@
     <p class='alert'><b>Alert:</b> <%= flash[:alert] %></p>
   <% end %>
 
+
   <%= yield %>
+
+
+  <%= javascript_tag do %>
+    window.sockjs_url = "<%= j ENV['NODEJS_URL'] %>";
+  <% end %>
+
+  <%= yield(:javascript_tags) %>
 
 </body>
 </html>

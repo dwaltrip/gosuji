@@ -21,8 +21,17 @@ class Board < ActiveRecord::Base
     board.save
   end
 
+  def pos_nums_and_tile_states(pos_list=nil)
+    if pos_list == nil
+      Array.new(self.game.board_size**2) { |n| [n, state(n)] }
+    else
+      logger.info "-- board.pos_nums_and_tile_states -- pos_list: #{pos_list.inspect}"
+      pos_list.to_a.sort.map { |n| [n, state(n)] }
+    end
+  end
+
   def tiles
-    Array.new(self.game.board_size**2) { |n| self["pos_#{n}".to_sym] }
+    Array.new(self.game.board_size**2) { |n| state(n) }
   end
 
   def replicate_and_update(pos, captured_count, color)
@@ -38,16 +47,25 @@ class Board < ActiveRecord::Base
   end
 
   def add_stone(pos, color)
-    self["pos_#{pos}".to_sym] = DB_STONE_MAPPINGS[color]
+    set_state(pos, DB_STONE_MAPPINGS[color])
   end
 
   def remove_stones(new_captures)
     logger.info "-- Board.remove_stones: new_captures= #{new_captures.inspect}"
-    new_captures.each do |pos|
-      self["pos_#{pos}"] = GoApp::EMPTY_TILE
+
+    if new_captures
+      new_captures.each { |pos| set_state(pos, GoApp::EMPTY_TILE) }
     end
 
     self.captured_stones += new_captures.size
+  end
+
+  def state(tile_pos)
+    self["pos_#{tile_pos}"]
+  end
+
+  def set_state(tile_pos, new_state)
+    self["pos_#{tile_pos}"] = new_state
   end
 
   def time_left
@@ -57,7 +75,7 @@ class Board < ActiveRecord::Base
   def stone_lists
     black_stones, white_stones = [], []
     (0...self.game.board_size**2).each do |n|
-      val = self["pos_#{n}".to_sym]
+      val = state(n)
       if val == GoApp::BLACK_STONE
         black_stones << n
       elsif val == GoApp::WHITE_STONE
@@ -95,6 +113,26 @@ class Board < ActiveRecord::Base
     printer.call "Played by: #{game.player_at_move(self.move_num).username.inspect}" if self.move_num > 0
     printer.call "Black Stones: #{black_stones.inspect}", "White Stones: #{white_stones.inspect}"
     printer.call "---------- done pretty printing ----------"
+  end
+
+  def board_rows_string_repr
+    a = []
+    row = "|"
+    (0..(self.game.board_size**2 - 1)).each do |n|
+      if state(n) == GoApp::WHITE_STONE
+        row << "w|"
+      elsif state(n) == GoApp::BLACK_STONE
+        row << "b|"
+      else
+        row << " |"
+      end
+
+      if (n + 1) % self.game.board_size == 0
+        a << row
+        row = "|"
+      end
+    end
+    a
   end
 
 end
