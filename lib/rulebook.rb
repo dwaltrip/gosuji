@@ -2,7 +2,7 @@ module Rulebook
 
   class Handler
     attr_reader :size, :group_ids, :members, :liberties, :colors, :group_count, :captured_stones
-    attr_reader :_ko_position
+    attr_reader :_ko_position, :board
 
     EMPTY = GoApp::EMPTY_TILE
     TILE_VALUES = { white: GoApp::WHITE_STONE, black: GoApp::BLACK_STONE }
@@ -47,7 +47,6 @@ module Rulebook
       end
 
       @board[move_pos] = @active_player_color
-      @active_player_color, @enemy_color = @enemy_color, @active_player_color
 
       if @captured_stones && (@captured_stones.size > 0)
         # could potentially create a method that updates only relevant sections of board after a capture
@@ -79,6 +78,7 @@ module Rulebook
         @new_killing_moves = { @active_player_color => Set.new, @enemy_color => Set.new }
         update_neighbors(move_pos, @active_player_color)
       end
+      @active_player_color, @enemy_color = @enemy_color, @active_player_color
       @new_move_pos = move_pos
 
       Rails.logger.info "-- Rulebook.play_move -- @former_invalid_moves: #{@former_invalid_moves.inspect}"

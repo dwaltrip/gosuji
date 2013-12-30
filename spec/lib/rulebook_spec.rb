@@ -19,26 +19,47 @@ require 'rspec/expectations'
 RSpec::Matchers.define :contain do |*args|
   expected_elements = args_to_set(args)
 
-  match do |test_collection|
-    expected_elements.subset? test_collection.to_set
+  match_for_should do |actual|
+    expected_elements.subset? actual.to_set
+  end
+
+  match_for_should_not do |actual|
+    expected_elements.intersection(actual.to_set).empty?
   end
 end
+
 RSpec::Matchers.define :contain_any do |*args|
   expected_elements = args_to_set(args)
 
-  match do |test_collection|
-    expected_elements.intersection(test_collection.to_set).size > 0
+  match do |actual|
+    expected_elements.intersection(actual.to_set).size > 0
+  end
+
+  match_for_should_not do |actual|
+    expected_elements.intersection(actual.to_set).empty?
+  end
+end
+
+RSpec::Matchers.define :contain_exactly do |*args|
+  expected_elements = args_to_set(args)
+
+  match do |actual|
+    expected_elements == actual.to_set
   end
 end
 
 WHITE = GoApp::WHITE_STONE
 BLACK = GoApp::BLACK_STONE
-Group = Struct.new(:color, :members, :liberties)
 
 CHAR_MAP = {
   'b' => BLACK,
   'w' => WHITE,
   '_' => GoApp::EMPTY_TILE
+}
+TILE_VAL_TO_SYM = {
+  BLACK => :black,
+  WHITE => :white,
+  GoApp::EMPTY_TILE => :empty
 }
 
 def build_rulebook(rows)
@@ -62,6 +83,11 @@ def make_board(rows)
   end
 end
 
+def generate_blank_rulebook(size)
+  board = Array.new(size**2) { GoApp::EMPTY_TILE }
+  Rulebook::Handler.new(board: board, size: size)
+end
+
 class MoveTracker
   attr_reader :black, :white
 
@@ -76,10 +102,43 @@ class MoveTracker
   end
 end
 
+Scenario = Struct.new(:description, :expected_tiles)
+Group = Struct.new(:color, :members, :liberties)
+
+def get_liberties(pos, size)
+  libs = []
+  libs << pos - 1 if pos % size != 0
+  libs << pos + 1 if (pos + 1) % size != 0
+  libs << pos + size if pos < (size - 1) * size
+  libs << pos - size if pos >= size
+  libs.to_set
+end
+
 
 describe Rulebook do
 
-  shared_examples "properly identifies stone groups (rulebook.analyze_board)" do |rulebook, expected_groups|
+  # Ironically, after realizing 'get_killing_moves' is a private method and cant be cleanly tested
+  # I remembered that the only reason the @members, @group_ids, @liberties, and @colors variables are accessible
+  # is because I made them accessible while I writing the rulebook code, for testing/debugging purposes
+  # so honestly they should be private implementation details that arent cleanly testable
+  # alternatively, a superior design would be to extract this data/functionality into Group & GroupManager objects
+  # I could then cleanly test the public methods and data on those objects
+  # this would be a fair amount of work. but the rulebook class is also unambiguously too large
+  shared_examples "properly identifies/maintians board state and stone groups" do |rulebook, expected_groups|
+
+    it "internally maintains correct board state" do
+      expected_groups.each do |expected_group|
+        expected_group.members.each do |stone_pos|
+          expect(rulebook.board[stone_pos]).to eq(expected_group.color)
+        end
+      end
+
+      expected_stone_count = expected_groups.inject(0) { |sum, group| sum + group.members.size }
+      expected_blank_tile_count = (rulebook.size ** 2 - expected_stone_count)
+      actual_blank_tile_count = rulebook.board.count { |tile| tile == GoApp::EMPTY_TILE }
+
+      expect(actual_blank_tile_count).to eq(expected_blank_tile_count)
+    end
 
     it "identifies the correct members for each group of stones" do
       expect(rulebook.members.size).to eq(expected_groups.size)
@@ -111,6 +170,25 @@ describe Rulebook do
       expected_groups.each do |expected_group|
         group_id = rulebook.group_ids[expected_group.members.to_a.pop]
         expect(rulebook.colors[group_id]).to eq(expected_group.color)
+      end
+    end
+  end
+
+
+  #shared_examples "marks as invalid" do |scenarios, rulebook, move_tracker=nil| # this didn't work for some reason
+  shared_examples "marks as invalid" do |*args|
+    scenarios = args[0]
+    rulebook = args[1]
+    move_tracker = args[2] || nil
+
+    scenarios.each do |scenario|
+      it "#{scenario.description}" do
+        # keep track of all the expected invalid moves (from each scenario/example)
+        # so we can ensure that, together, our specified scenarios equal the set of all invalid moves
+        move_tracker.merge(scenario.expected_tiles) if not move_tracker.nil?
+
+        expect(rulebook.invalid_moves[:black]).to contain(scenario.expected_tiles[:black])
+        expect(rulebook.invalid_moves[:white]).to contain(scenario.expected_tiles[:white])
       end
     end
   end
@@ -161,32 +239,18 @@ describe Rulebook do
     ]
     move_tracker = MoveTracker.new
 
-    it_ "properly identifies stone groups (rulebook.analyze_board)", rulebook, expected_groups
+    it_ "properly identifies/maintians board state and stone groups", rulebook, expected_groups
 
     context "when marking invalid moves (rulebook.invalid_moves)" do
-      Scenario = Struct.new(:description, :expected_tiles)
-
-      shared_examples "marks" do |scenarios|
-        scenarios.each do |scenario|
-          it "#{scenario.description} as invalid" do
-            # keep track of all the expected invalid moves (from each scenario/example)
-            # so we can ensure that, together, our specified scenarios equal the set of all invalid moves
-            move_tracker.merge(scenario.expected_tiles)
-
-            expect(rulebook.invalid_moves[:black]).to contain(scenario.expected_tiles[:black])
-            expect(rulebook.invalid_moves[:white]).to contain(scenario.expected_tiles[:white])
-          end
-        end
-      end
 
       # block starting with: all_liberties.each do |empty_pos|
       context "and examining empty tiles surrounded by stones of a single color" do
 
-        it_ "marks", [
+        it_ "marks as invalid", [
           Scenario.new("isolated corner tiles", black: [0], white: [9]),
           Scenario.new("isolated edge tiles", black: [2], white: [29, 92]),
           Scenario.new("isolated center tiles", black: [11], white: [18])
-        ]
+        ], rulebook, move_tracker
 
         it "does not mark tile groups of size 2 (or more) as invalid" do
           expect(rulebook.invalid_moves[:white]).not_to contain_any(26, 27)
@@ -196,10 +260,10 @@ describe Rulebook do
       # block starting with: single_liberty_groups.each do |single_lib_group_id, libs|
       context "and examining stone groups with a single liberty (that are non-killing moves)" do
 
-        it_ "marks", [
+        it_ "marks as invalid", [
           Scenario.new("the liberty tile", black: [20, 97], white: [7, 81]),
           Scenario.new("the shared liberty of friendly single liberty groups", black: [79], white: [34])
-        ]
+        ], rulebook, move_tracker
 
         it "does not mark the liberty tiles of surrounded groups with more than 1 liberty as invalid" do
           expect(rulebook.invalid_moves[:white]).not_to contain_any(46, 48, 73, 83)
@@ -214,14 +278,122 @@ describe Rulebook do
       context "and lastly" do
         # invalid_moves object stores the moves as it tests them in each example above (for this test)
         it "exactly matches the combined invalid move set of the specified examples" do
-          expect(rulebook.invalid_moves[:black]).to eq(move_tracker.black)
-          expect(rulebook.invalid_moves[:white]).to eq(move_tracker.white)
+          expect(rulebook.invalid_moves[:black]).to contain_exactly(move_tracker.black)
+          expect(rulebook.invalid_moves[:white]).to contain_exactly(move_tracker.white)
+        end
+      end
+    end
+  end
+
+  # as I write the code for this section of the specs
+  # I realize I should have something like a BoardManager object
+  # that can add stones, fetch liberties, knows (and hides from public viewing) the coordinate system, etc
+  # this would be tested separately, and then in here I would do things like
+  # bm = BoardManager.new(size)
+  # bm.add_pos(:white, 1, 1) # this would handle liberties, etc
+  # of course, we would first need Group & GroupManager objects, which BoardManager would coordinate with
+  context "when handling new moves (rulebook.play_move), basic scenarios" do
+    size = 10
+
+    context 'with a blank board' do
+      blank_rulebook = generate_blank_rulebook(size)
+      expected_groups = []
+
+      it_ "properly identifies/maintians board state and stone groups", blank_rulebook, expected_groups
+
+      moves = {
+        center: { black: size + 1, white: (size * 2) - 2 },
+        edge: { black: size * 3, white: (size * 4) - 1 },
+        corner: { black: (size - 1) * size, white: size**2 - 1 }
+      }
+
+      # if we dont wrap setup code in before(:all), then we are testing the final state multiple times
+      # instead of testing the rulebook after each move (as we iterate to the final state)
+      moves.keys.each do |move_type|
+        context "after playing isolated #{move_type} moves" do
+
+          before(:all) do
+            [BLACK, WHITE].each do |color|
+              # rulebook.play_move accepts ':white' and ':black', while BLACK=false & WHITE=true (db values)
+              color_sym = TILE_VAL_TO_SYM[color]
+              pos = moves[move_type][color_sym]
+              expected_groups << Group.new(color, Set.new([pos]), get_liberties(pos, size))
+
+              blank_rulebook.play_move(pos, color_sym)
+            end
+          end
+
+          it_ "properly identifies/maintians board state and stone groups", blank_rulebook, expected_groups
         end
       end
     end
 
-    context "when finding killing moves (rulebook.get_killing_moves)" do
+    # the sub-sections for this group are not independent. probably not optimal, but fine for now
+    # had to add 'before(:all)' blocks, or all the setup code would run before any of the specs were run
+    context "after playing stones next to existing groups" do
+      small_rulebook = build_rulebook([
+        '|_|_|_|_|',
+        '|w|_|_|b|',
+        '|_|_|_|_|',
+        '|_|_|_|_|'
+      ])
+      expected_groups = []
 
+      context "by adding new stones next to friendly groups" do
+        before(:all) do
+          expected_groups << Group.new(BLACK, Set.new([7, 11]), Set.new([3, 6, 10, 15]))
+          expected_groups << Group.new(WHITE, Set.new([4, 5]), Set.new([0, 1, 6, 8, 9]))
+
+          small_rulebook.play_move(11, :black)
+          small_rulebook.play_move(5, :white)
+        end
+
+        it_ "properly identifies/maintians board state and stone groups", small_rulebook, expected_groups
+        it_ "marks as invalid", [Scenario.new("no tiles", black: [], white: [])], small_rulebook
+      end
+
+      context "by adding new stones next to enemy groups" do
+        new_groups = [
+          Group.new(BLACK, Set.new([1]), Set.new([0, 2])),
+          Group.new(WHITE, Set.new([10]), Set.new([6, 9, 14]))
+        ]
+        before(:all) do
+          expected_groups.each do |old_group|
+            new_groups.each { |group| old_group.liberties.subtract(group.members) }
+          end
+          expected_groups.concat(new_groups)
+
+          small_rulebook.play_move(1, :black)
+          small_rulebook.play_move(10, :white)
+        end
+
+        it_ "properly identifies/maintians board state and stone groups", small_rulebook, expected_groups
+        it_ "marks as invalid", [Scenario.new("no tiles", black: [], white: [])], small_rulebook
+      end
+
+      context "which connect two friendly groups" do
+        # asterisk is connecting move (top is black, 3rd row is white)
+        #        |_|b|_|_|        |_|b|*|b|
+        # before |w|w|_|b| after  |w|w|_|b|
+        #        |_|_|w|b| -----> |_|*|w|b|
+        #        |_|_|_|_|        |_|w|_|_|
+
+        updated_groups = [
+          Group.new(BLACK, Set.new([1, 2, 3, 7, 11]), Set.new([0, 6, 15])),
+          Group.new(WHITE, Set.new([4, 5, 9, 10, 13]), Set.new([0, 6, 8, 12, 14]))
+        ]
+        before(:all) do
+          small_rulebook.play_move(3, :black)
+          small_rulebook.play_move(13, :white)
+          small_rulebook.play_move(2, :black)
+          small_rulebook.play_move(9, :white)
+        end
+
+        it_ "properly identifies/maintians board state and stone groups", small_rulebook, updated_groups
+        it_ "marks as invalid", [Scenario.new("no tiles", black: [], white: [])], small_rulebook
+      end
     end
   end
+
 end
+
