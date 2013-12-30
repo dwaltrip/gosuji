@@ -175,20 +175,65 @@ describe Rulebook do
   end
 
 
-  #shared_examples "marks as invalid" do |scenarios, rulebook, move_tracker=nil| # this didn't work for some reason
-  shared_examples "marks as invalid" do |*args|
-    scenarios = args[0]
-    rulebook = args[1]
-    move_tracker = args[2] || nil
-
+  shared_examples "marks as invalid" do |scenarios, rulebook, move_tracker|
     scenarios.each do |scenario|
       it "#{scenario.description}" do
         # keep track of all the expected invalid moves (from each scenario/example)
         # so we can ensure that, together, our specified scenarios equal the set of all invalid moves
-        move_tracker.merge(scenario.expected_tiles) if not move_tracker.nil?
+        move_tracker.merge(scenario.expected_tiles) unless move_tracker.nil?
 
         expect(rulebook.invalid_moves[:black]).to contain(scenario.expected_tiles[:black])
         expect(rulebook.invalid_moves[:white]).to contain(scenario.expected_tiles[:white])
+      end
+    end
+  end
+
+  shared_examples "does not mark as invalid" do |scenarios, rulebook|
+    scenarios.each do |scenario|
+      it "#{scenario.description}" do
+        expect(rulebook.invalid_moves[:black]).not_to contain(scenario.expected_tiles[:black])
+        expect(rulebook.invalid_moves[:white]).not_to contain(scenario.expected_tiles[:white])
+      end
+    end
+  end
+
+  shared_examples "identifies invalid tiles (rulebook.invalid_moves)" do |rulebook, invalid_tiles, valid_tiles|
+    move_tracker = MoveTracker.new
+
+    # block starting with: all_liberties.each do |empty_pos|
+    context "examines empty tiles surrounded by stones of a single color" do
+
+      it_ "marks as invalid", [
+        Scenario.new("isolated corner tiles", invalid_tiles[:isolated_corners]),
+        Scenario.new("isolated edge tiles", invalid_tiles[:isolated_edges]),
+        Scenario.new("isolated center tiles", invalid_tiles[:isolated_centers])
+      ], rulebook, move_tracker
+
+      it_ "does not mark as invalid", [
+        Scenario.new("isolated tile groups of size 2 or more", valid_tiles[:isolated_2_or_more])
+      ], rulebook
+    end
+
+    # block starting with: single_liberty_groups.each do |single_lib_group_id, libs|
+    context "examines stone groups with a single liberty (that are non-killing moves)" do
+
+      it_ "marks as invalid", [
+        Scenario.new("the only liberty tile", invalid_tiles[:surrounded_last_lib]),
+        Scenario.new("the shared liberty of friendly single-lib groups", invalid_tiles[:shared_single_lib])
+      ], rulebook, move_tracker
+
+      it_ "does not mark as invalid", [
+        Scenario.new("liberty tiles of surround groups with multiple liberties", valid_tiles[:at_least_2_libs]),
+        Scenario.new("liberty tile when conecting to multiple-lib friendly group", valid_tiles[:connect_friendly])
+      ], rulebook
+    end
+
+    # this last block is dependent on the previous blocks passing successfully
+    context "and lastly" do
+      # move_tracker object stores invalid moves as it tests them in each shared example/scenario above
+      it "exactly matches the combined invalid move set of the specified examples" do
+        expect(rulebook.invalid_moves[:black]).to contain_exactly(move_tracker.black)
+        expect(rulebook.invalid_moves[:white]).to contain_exactly(move_tracker.white)
       end
     end
   end
@@ -208,6 +253,19 @@ describe Rulebook do
       '|w|_|b|_|w|w|b|w|w|b|',
       '|w|b|_|b|w|b|b|_|w|b|'
     ])
+
+    invalid_tiles = {
+      isolated_corners: { black: [0], white: [9] },
+      isolated_edges: { black: [2], white: [29, 92] },
+      isolated_centers: { black: [11], white: [18] },
+      surrounded_last_lib: { black: [20, 97], white: [7, 81] },
+      shared_single_lib: { black: [79], white: [34] }
+    }
+    valid_tiles = {
+      isolated_2_or_more: { black: [], white: [26, 26] },
+      at_least_2_libs: { black: [], white: [46, 48, 73, 83] },
+      connect_friendly: { black: [], white: [] }
+    }
 
     expected_groups = [
       Group.new(WHITE, Set.new([1]), Set.new([0, 2, 11])),
@@ -237,52 +295,9 @@ describe Rulebook do
       Group.new(BLACK, Set.new([89, 99]), Set.new([79])),
       Group.new(BLACK, Set.new([95, 96, 76, 86]), Set.new([97])),
     ]
-    move_tracker = MoveTracker.new
 
     it_ "properly identifies/maintians board state and stone groups", rulebook, expected_groups
-
-    context "when marking invalid moves (rulebook.invalid_moves)" do
-
-      # block starting with: all_liberties.each do |empty_pos|
-      context "and examining empty tiles surrounded by stones of a single color" do
-
-        it_ "marks as invalid", [
-          Scenario.new("isolated corner tiles", black: [0], white: [9]),
-          Scenario.new("isolated edge tiles", black: [2], white: [29, 92]),
-          Scenario.new("isolated center tiles", black: [11], white: [18])
-        ], rulebook, move_tracker
-
-        it "does not mark tile groups of size 2 (or more) as invalid" do
-          expect(rulebook.invalid_moves[:white]).not_to contain_any(26, 27)
-        end
-      end
-
-      # block starting with: single_liberty_groups.each do |single_lib_group_id, libs|
-      context "and examining stone groups with a single liberty (that are non-killing moves)" do
-
-        it_ "marks as invalid", [
-          Scenario.new("the liberty tile", black: [20, 97], white: [7, 81]),
-          Scenario.new("the shared liberty of friendly single liberty groups", black: [79], white: [34])
-        ], rulebook, move_tracker
-
-        it "does not mark the liberty tiles of surrounded groups with more than 1 liberty as invalid" do
-          expect(rulebook.invalid_moves[:white]).not_to contain_any(46, 48, 73, 83)
-        end
-
-        # medium example does not have this scenario
-        #it "does not mark the liberty tile as invalid when it connects to a friendly group w/ multiple liberties" do
-        #  expect(rulebook.invalid_moves[:white]).not_to contain_any(...)
-        #end
-      end
-
-      context "and lastly" do
-        # invalid_moves object stores the moves as it tests them in each example above (for this test)
-        it "exactly matches the combined invalid move set of the specified examples" do
-          expect(rulebook.invalid_moves[:black]).to contain_exactly(move_tracker.black)
-          expect(rulebook.invalid_moves[:white]).to contain_exactly(move_tracker.white)
-        end
-      end
-    end
+    it_ "identifies invalid tiles (rulebook.invalid_moves)", rulebook, invalid_tiles, valid_tiles
   end
 
   # as I write the code for this section of the specs
