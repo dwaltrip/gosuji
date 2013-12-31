@@ -210,12 +210,13 @@ describe Rulebook do
       ], rulebook, move_tracker
 
       it_ "does not mark as invalid", [
-        Scenario.new("isolated tile groups of size 2 or more", valid_tiles[:isolated_2_or_more])
+        Scenario.new("isolated tile groups of size 2 or more", valid_tiles[:isolated_2_or_more]),
+        Scenario.new("isolated tiles that are killing moves", valid_tiles[:isolated_killing_move])
       ], rulebook
     end
 
     # block starting with: single_liberty_groups.each do |single_lib_group_id, libs|
-    context "examines stone groups with a single liberty (that are non-killing moves)" do
+    context "examines stone groups with a single liberty" do
 
       it_ "marks as invalid", [
         Scenario.new("the only liberty tile", invalid_tiles[:surrounded_last_lib]),
@@ -224,7 +225,8 @@ describe Rulebook do
 
       it_ "does not mark as invalid", [
         Scenario.new("liberty tiles of surround groups with multiple liberties", valid_tiles[:at_least_2_libs]),
-        Scenario.new("liberty tile when conecting to multiple-lib friendly group", valid_tiles[:connect_friendly])
+        Scenario.new("liberty tile when conecting to multiple-lib friendly group", valid_tiles[:connect_friendly]),
+        Scenario.new("last remaining liberty tiles that are killing moves", valid_tiles[:last_liberty_killing])
       ], rulebook
     end
 
@@ -248,23 +250,25 @@ describe Rulebook do
       '|b|w|_|b|_|w|b|b|b|b|',
       '|w|b|w|b|w|b|_|w|_|b|',
       '|_|b|w|b|w|b|b|b|b|_|',
-      '|w|w|w|b|b|b|w|w|w|w|',
-      '|b|b|b|_|w|w|b|w|b|_|',
+      '|w|w|w|b|b|_|w|w|w|b|',
+      '|b|b|b|_|w|_|w|w|b|_|',
       '|w|_|b|_|w|w|b|w|w|b|',
-      '|w|b|_|b|w|b|b|_|w|b|'
+      '|w|b|_|b|w|b|_|b|w|b|'
     ])
 
     invalid_tiles = {
       isolated_corners: { black: [0], white: [9] },
-      isolated_edges: { black: [2], white: [29, 92] },
+      isolated_edges: { black: [2], white: [29, 59, 92] },
       isolated_centers: { black: [11], white: [18] },
-      surrounded_last_lib: { black: [20, 97], white: [7, 81] },
-      shared_single_lib: { black: [79], white: [34] }
+      surrounded_last_lib: { black: [20], white: [7, 81] },
+      shared_single_lib: { black: [96], white: [34] }
     }
     valid_tiles = {
-      isolated_2_or_more: { black: [], white: [26, 26] },
-      at_least_2_libs: { black: [], white: [46, 48, 73, 83] },
-      connect_friendly: { black: [], white: [] }
+      isolated_2_or_more: { black: [], white: [26, 27] },
+      isolated_killing_move: { black: [], white: [79, 96] },
+      at_least_2_libs: { black: [], white: [46, 48] },
+      connect_friendly: { black: [79], white: [] },
+      last_liberty_killing: { black: [50], white: [] }
     }
 
     expected_groups = [
@@ -277,23 +281,27 @@ describe Rulebook do
       Group.new(WHITE, Set.new([21, 31]), Set.new([11, 20, 22, 32])),
       Group.new(BLACK, Set.new([24, 25, 5, 15, 16, 17]), Set.new([14, 4, 7, 18, 26, 27, 34])),
       Group.new(BLACK, Set.new([30]), Set.new([20])),
-      Group.new(BLACK, Set.new([33, 43, 45, 53, 55, 56, 57, 58, 63, 64, 65]), Set.new([32, 34, 46, 48, 59, 73])),
+      Group.new(BLACK, Set.new([33, 43, 53, 63, 64]), Set.new([32, 34, 65, 73])),
       Group.new(WHITE, Set.new([35]), Set.new([34])),
       Group.new(BLACK, Set.new([36, 37, 38, 28, 39, 49]), Set.new([26, 27, 18, 29, 46, 48, 59])),
       Group.new(WHITE, Set.new([40]), Set.new([50])),
       Group.new(BLACK, Set.new([41, 51]), Set.new([50])),
       Group.new(WHITE, Set.new([44, 54]), Set.new([34])),
+      Group.new(BLACK, Set.new([45, 55, 56, 57, 58]), Set.new([46, 48, 59, 65])),
       Group.new(WHITE, Set.new([47]), Set.new([46, 48])),
       Group.new(WHITE, Set.new([60, 61, 62, 42, 52]), Set.new([50, 32])),
-      Group.new(WHITE, Set.new([66, 67, 68, 69, 77, 87, 88, 98]), Set.new([59, 79, 97])),
+      Group.new(WHITE, Set.new([66, 67, 68, 76, 77, 87, 88, 98]), Set.new([65, 75])),
+      Group.new(BLACK, Set.new([69]), Set.new([59, 79])),
       Group.new(BLACK, Set.new([70, 71, 72, 82]), Set.new([73, 81, 83, 92])),
-      Group.new(WHITE, Set.new([74, 75, 84, 85, 94]), Set.new([73, 83])),
+      Group.new(WHITE, Set.new([74, 84, 85, 94]), Set.new([73, 75, 83])),
       Group.new(BLACK, Set.new([78]), Set.new([79])),
       Group.new(WHITE, Set.new([80, 90]), Set.new([81])),
+      Group.new(BLACK, Set.new([86]), Set.new([96])),
       Group.new(BLACK, Set.new([91]), Set.new([81, 92])),
       Group.new(BLACK, Set.new([93]), Set.new([83, 92])),
-      Group.new(BLACK, Set.new([89, 99]), Set.new([79])),
-      Group.new(BLACK, Set.new([95, 96, 76, 86]), Set.new([97])),
+      Group.new(BLACK, Set.new([95]), Set.new([96])),
+      Group.new(BLACK, Set.new([97]), Set.new([96])),
+      Group.new(BLACK, Set.new([89, 99]), Set.new([79]))
     ]
 
     it_ "properly identifies/maintians board state and stone groups", rulebook, expected_groups
