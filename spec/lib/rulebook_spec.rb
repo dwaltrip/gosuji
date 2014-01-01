@@ -66,7 +66,10 @@ def build_rulebook(rows)
   board = make_board(rows)
   size = rows[0].gsub('|', '').length
 
-  raise "Row inputs do not have same number of tiles" if size**2 != board.length
+  rows.each_with_index do |row, i|
+    raise "Row #{i} has the incorrect number of tiles" if row.gsub('|', '').length != size
+  end
+  raise "Row inputs do not form a square board" if size**2 != board.length
 
   Rulebook::Handler.new(board: board, size: Integer(size))
 end
@@ -105,7 +108,7 @@ end
 Scenario = Struct.new(:description, :expected_tiles)
 Group = Struct.new(:color, :members, :liberties)
 
-def get_liberties(pos, size)
+def get_neighbors(pos, size)
   libs = []
   libs << pos - 1 if pos % size != 0
   libs << pos + 1 if (pos + 1) % size != 0
@@ -340,7 +343,7 @@ describe Rulebook do
               # rulebook.play_move accepts ':white' and ':black', while BLACK=false & WHITE=true (db values)
               color_sym = TILE_VAL_TO_SYM[color]
               pos = moves[move_type][color_sym]
-              expected_groups << Group.new(color, Set.new([pos]), get_liberties(pos, size))
+              expected_groups << Group.new(color, Set.new([pos]), get_neighbors(pos, size))
 
               blank_rulebook.play_move(pos, color_sym)
             end
@@ -414,6 +417,130 @@ describe Rulebook do
 
         it_ "properly identifies/maintians board state and stone groups", small_rulebook, updated_groups
         it_ "marks as invalid", [Scenario.new("no tiles", black: [], white: [])], small_rulebook
+      end
+    end
+  end
+
+  # too coupled to rulebook internals (like many of the specs in this file..)
+  # rulebook will undergo a large refactoring one day
+  # I now understand more viscerally why you are supposed to write specs before implementing!
+  shared_examples "captures group(s) properly" do |rulebook, expected_captures|
+    it "stores set of captured stones" do
+      expect(rulebook.captured_stones).to contain_exactly(expected_captures)
+    end
+
+    it "updates board state" do
+      expected_captures.each do |pos|
+        expect(rulebook.board[pos]).to eq(GoApp::EMPTY_TILE)
+      end
+    end
+
+    it "updates group data" do
+      all_stones = rulebook.members.values.inject(Set.new) { |all, members| all.merge(members) }
+
+      expect(all_stones).not_to contain(expected_captures)
+      expect(rulebook.group_ids.keys).not_to contain(expected_captures)
+
+      expected_captures.each do |pos|
+        get_neighbors(pos, rulebook.size).each do |neighbor_pos|
+          neighbor_group = rulebook.group_ids[neighbor_pos]
+
+          if neighbor_group
+            expect(rulebook.liberties[neighbor_group]).to contain(pos)
+          end
+        end
+      end
+    end
+  end
+
+  context "when handling new moves (rulebook.play_move) that capture enemy groups" do
+    rulebook = build_rulebook([
+      '|b|b|_|b|w|_|',
+      '|b|w|_|b|w|w|',
+      '|w|w|_|b|b|b|',
+      '|_|_|_|_|_|_|',
+      '|w|w|w|_|w|w|',
+      '|b|b|b|_|b|b|'
+    ])
+
+    capturing_moves = [
+      { description: "a basic capture", color: :white, pos: 2, captures: Set.new([0, 1, 6]) },
+      { description: "an isolated killing move", color: :black, pos: 5, captures: Set.new([4, 10, 11]) },
+      { description: "a two group capture", color: :white, pos: 33, captures: Set.new([30, 31, 32, 34, 35]) }
+    ]
+
+    capturing_moves.each do |move|
+      context "with #{move[:description]}" do
+        before(:all) { rulebook.play_move(move[:pos], move[:color]) }
+
+        it_ "captures group(s) properly", rulebook, move[:captures]
+      end
+    end
+  end
+
+
+  context "when handling new moves (rulebook.play_move) that affect which tiles are valid" do
+    rulebook = build_rulebook([
+      '|_|w|b|_|_|_|w|_|',
+      '|w|w|b|_|_|w|_|_|',
+      '|_|b|b|_|_|_|w|w|',
+      '|b|_|_|_|_|_|b|b|',
+      '|_|b|w|_|_|_|b|_|',
+      '|b|w|w|_|_|_|b|w|',
+      '|_|b|w|_|_|b|w|b|',
+      '|b|w|w|_|_|b|w|_|',
+    ])
+
+    scenarios = [
+      { description: "single eye group losing outside liberties", color: :black, pos: 16,
+        valid_before: { white: [0], black: [] },
+        invalid_before: { white: [], black: [0] },
+        valid_after: { white: [], black: [0] },
+        invalid_after: { white: [0], black: [] }
+      },
+      { description: "creating surrounded/isolated empty tiles", color: :white, pos: 15,
+        valid_before: { white: [7, 14], black: [7, 14] },
+        invalid_before: { white: [], black: [] },
+        valid_after: { white: [7, 14], black: [] },
+        invalid_after: { white: [], black: [7, 14] }
+      },
+      { description: "surrounded empty tile becoming killing move", color: :black, pos: 48,
+        valid_before: { white: [], black: [32] },
+        invalid_before: { white: [32], black: [] },
+        valid_after: { white: [32], black: [32] },
+        invalid_after: { white: [], black: [] }
+      },
+      { description: "snapback", color: :white, pos: 63,
+        valid_before: { white: [63], black: [63] },
+        invalid_before: { white: [39], black: [] },
+        valid_after: { white: [39, 55], black: [55] },
+        invalid_after: { white: [], black: [] }
+      }
+      #{ description: "", color: :, pos: ,
+      #  valid_before: { white: [], black: [] },
+      #  invalid_before: { white: [], black: [] },
+      #  valid_after: { white: [], black: [] },
+      #  invalid_after: { white: [], black: [] }
+      #}
+    ]
+
+    scenarios.each do |scenario|
+      context "such as #{scenario[:description]}" do
+        it "labels invalid tiles correctly before" do
+          expect(rulebook.invalid_moves[:white]).to contain(scenario[:invalid_before][:white])
+          expect(rulebook.invalid_moves[:black]).to contain(scenario[:invalid_before][:black])
+          expect(rulebook.invalid_moves[:white]).not_to contain(scenario[:valid_before][:white])
+          expect(rulebook.invalid_moves[:black]).not_to contain(scenario[:valid_before][:black])
+        end
+
+        it "labels invalid tiles correctly after" do
+          rulebook.play_move(scenario[:pos], scenario[:color])
+
+          expect(rulebook.invalid_moves[:white]).to contain(scenario[:invalid_after][:white])
+          expect(rulebook.invalid_moves[:black]).to contain(scenario[:invalid_after][:black])
+          expect(rulebook.invalid_moves[:white]).not_to contain(scenario[:valid_after][:white])
+          expect(rulebook.invalid_moves[:black]).not_to contain(scenario[:valid_after][:black])
+        end
       end
     end
   end
