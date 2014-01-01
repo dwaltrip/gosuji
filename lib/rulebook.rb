@@ -83,6 +83,7 @@ module Rulebook
 
       Rails.logger.info "-- Rulebook.play_move -- @former_invalid_moves: #{@former_invalid_moves.inspect}"
       Rails.logger.info "-- Rulebook.play_move -- @new_killing_moves: #{@new_killing_moves.inspect}"
+
       invalid_moves(force_recalculate=true)
       Rails.logger.info "-- Rulebook.play_move -- invalid_moves: #{invalid_moves.inspect}"
     end
@@ -167,6 +168,8 @@ module Rulebook
       Rails.logger.info "-- Rulebook.calculate_invalid_moves -- just entered"
       killing_moves = get_killing_moves
 
+      # ugly hack to add positions from new_killing_mvoes into killing_moves, if any
+      # this should be moved into get_killing_moves?
       if @new_killing_moves
         Rails.logger.info "-- Rulebook.calculate_invalid_moves -- @new_killing_moves: #{@new_killing_moves.inspect}"
         TILE_VALUES.values.each do |color|
@@ -239,19 +242,13 @@ module Rulebook
       log_msg = "pos: #{pos.inspect}, color: #{color.inspect}, potential_new_libs: #{potential_new_libs.inspect}"
       Rails.logger.info "-- Rulebook.update_neighbors -- #{log_msg}"
 
+      # update neighboring groups
       neighbors(pos).each do |neighbor_pos|
         neighbor_group = @group_ids[neighbor_pos]
-
-        if neighbor_group
-          @liberties[neighbor_group].delete(pos)
-        end
-
-        # if neighbor is enemy and now only has 1 lib, then that lib is a killing move for 'color'
-        if (@colors[neighbor_group] == opposing_color(color)) && (@liberties[neighbor_group].size == 1)
-          @new_killing_moves[color].add @liberties[neighbor_group].to_a.pop
+        @liberties[neighbor_group].delete(pos) if neighbor_group
 
         # new stone is connected to friendly group (same color)
-        elsif @colors[neighbor_group] == color
+        if @colors[neighbor_group] == color
 
           # add new stone to the group it is now connected to
           if @group_ids[pos] == nil
@@ -263,12 +260,24 @@ module Rulebook
           # unless we already added it to a group (then merge those two)
           elsif @group_ids[pos] != neighbor_group
             merge_groups(@group_ids[pos], neighbor_group)
-          else
-            Rails.logger.info "-- Rulebook.update_neighbors -- LOGIC ERROR, this case should not happen!!"
           end
+        end
+      end
 
+      # check for new killing moves
+      neighbors(pos).each do |neighbor_pos|
+        neighbor_group = @group_ids[neighbor_pos]
+
+        # if neighbor is enemy and now only has 1 lib, then that lib is a killing move for 'color'
+        if (@colors[neighbor_group] == opposing_color(color)) && (@liberties[neighbor_group].size == 1)
+          @new_killing_moves[color].add @liberties[neighbor_group].to_a.pop
+          Rails.logger.info "--- adding to new_killing_moves, v1 --- neighbor: #{@members[neighbor_group].inspect}"
+        end
+
+        if @colors[neighbor_group] == color
           if @liberties[@group_ids[pos]].size == 1
             @new_killing_moves[opposing_color(color)].add @liberties[@group_ids[pos]].to_a.pop
+            Rails.logger.info "--- adding to new_killing_moves, v2 --- pos group: #{@members[@group_ids[pos]].inspect}"
           end
         end
       end
