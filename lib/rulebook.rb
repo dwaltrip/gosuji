@@ -2,7 +2,7 @@ module Rulebook
 
   class Handler
     attr_reader :size, :group_ids, :members, :liberties, :colors, :group_count, :captured_stones
-    attr_reader :_ko_position
+    attr_reader :_ko_position, :board
 
     EMPTY = GoApp::EMPTY_TILE
     TILE_VALUES = { white: GoApp::WHITE_STONE, black: GoApp::BLACK_STONE }
@@ -49,25 +49,22 @@ module Rulebook
       @board[move_pos] = @active_player_color
 
       if @captured_stones && (@captured_stones.size > 0)
-        # switch active player first
-        @active_player_color, @enemy_color = @enemy_color, @active_player_color
-
         # could potentially create a method that updates only relevant sections of board after a capture
         # but would be complex, right now we simply recreate board analysis after capturing stones
         analyze_board
-        _killing_moves = get_killing_moves
 
         # format of @new_killing_moves is simpler than that returned by get_killing_moves method
         # we only care about the positions (the keys), and can discard lists of groups that each move kills (values)
+        _killing_moves = get_killing_moves
         @new_killing_moves = {
           @active_player_color => _killing_moves[@active_player_color].keys,
           @enemy_color => _killing_moves[@enemy_color].keys
         }
 
-        # if a group has or more libs, and all but one of the libs are brand new from the captured group
+        # if a group has two or more libs, and all but one of the libs are brand new from the captured group
         # then that means this lib is no longer an invalid move for the group owner
         @former_invalid_moves = { @active_player_color => Set.new, @enemy_color => Set.new }
-        Rails.logger.info "-- Rulebook.play_move -- @captured_stones: #{captured_stones.inspect}"
+        Rails.logger.info "-- Rulebook.play_move -- @captured_stones: #{@captured_stones.inspect}"
 
         (@liberties.select { |group_id, libs| libs.size > 1 }).each do |group_id, libs|
           @remaining_libs = libs.difference(@captured_stones)
@@ -81,6 +78,7 @@ module Rulebook
         @new_killing_moves = { @active_player_color => Set.new, @enemy_color => Set.new }
         update_neighbors(move_pos, @active_player_color)
       end
+      @active_player_color, @enemy_color = @enemy_color, @active_player_color
       @new_move_pos = move_pos
 
       Rails.logger.info "-- Rulebook.play_move -- @former_invalid_moves: #{@former_invalid_moves.inspect}"
@@ -186,7 +184,7 @@ module Rulebook
         neighbors(pos_of_only_liberty).each do |neighbor_pos|
           neighbor_id = @group_ids[neighbor_pos]
 
-          # if neighbor_pos is part of different group, then check more closely
+          # if neighbor_pos is part of different group, then need to keep checking
           if neighbor_id && neighbor_id != single_lib_group_id
             same_color = (@colors[neighbor_id] == color)
             more_than_one_lib = (@liberties[neighbor_id].size > 1)
@@ -249,7 +247,7 @@ module Rulebook
         end
 
         # if neighbor is enemy and now only has 1 lib, then that lib is a killing move for 'color'
-        if (@board[neighbor_pos] == opposing_color(color)) && (@liberties[neighbor_group].size == 1)
+        if (@colors[neighbor_group] == opposing_color(color)) && (@liberties[neighbor_group].size == 1)
           @new_killing_moves[color].add @liberties[neighbor_group].to_a.pop
 
         # new stone is connected to friendly group (same color)
@@ -373,22 +371,18 @@ module Rulebook
         up_group, left_group = get_group_ids(up, left)
 
         if tile_type == EMPTY
-          if left_group
-            @liberties[left_group].add(pos)
-          end
-          if up_group
-            @liberties[up_group].add(pos)
-          end
+          @liberties[left_group].add(pos) if left_group
+          @liberties[up_group].add(pos) if up_group
 
         else
           # if same color as left stone, add to that group
-          if left && (tile_type == @board[left])
+          if left && (tile_type == @colors[left_group])
             @members[left_group].add(pos)
             @group_ids[pos] = left_group
           end
 
           # if same color as up stone, add to that group
-          if up && (tile_type == @board[up])
+          if up && (tile_type == @colors[up_group])
 
             # check if already added to left group, and if up group is different, then combine the two
             if left_group && @members[left_group].include?(pos) && left_group != up_group
@@ -438,6 +432,7 @@ module Rulebook
       # remove prior references to group 2
       @members.delete(group_2)
       @liberties.delete(group_2)
+      @colors.delete(group_2)
     end
 
     # a neighbor is a directly adjacent tile (horizontal and vertical, not diagonal)

@@ -14,7 +14,7 @@ gem 'bcrypt-ruby', '3.0.1'
 
 group :development, :test do
   gem 'thin'
-  gem 'rspec-rails', '2.13.1'
+  gem 'rspec-rails', '~> 2.13'
   gem 'debugger'
 
   ## used for more advanced testing set-up
@@ -24,6 +24,9 @@ end
 group :test do
   gem 'selenium-webdriver', '2.35.1'
   gem 'capybara', '2.1.0'
+
+  # avoid annoying I18n warning during rspec testing
+  gem 'i18n', '>= 0.6.9'
 
   ## used for more advanced testing set-up
   #gem 'rb-notifu', '0.0.4'
