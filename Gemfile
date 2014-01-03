@@ -24,6 +24,7 @@ end
 group :test do
   gem 'selenium-webdriver', '2.35.1'
   gem 'capybara', '2.1.0'
+  gem "factory_girl_rails", "~> 4.0"
 
   # avoid annoying I18n warning during rspec testing
   gem 'i18n', '>= 0.6.9'
