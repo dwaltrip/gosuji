@@ -35,7 +35,7 @@ group :test do
   #gem 'wdm', '0.1.0'
 
   ## used for more advanced testing set-up
-  #gem 'spork-rails', '4.0.0'
+  gem 'spork-rails', '4.0.0'
   #gem 'guard-spork', '1.5.0'
   #gem 'childprocess', '0.3.9'
 end
