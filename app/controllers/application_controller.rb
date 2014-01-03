@@ -1,5 +1,5 @@
 class ApplicationController < ActionController::Base
-  around_filter :global_request_logging
+  around_filter :global_request_logging if Rails.env.development?
   #after_filter :catch_js_response_errors
 
   # Prevent CSRF attacks by raising an exception.
