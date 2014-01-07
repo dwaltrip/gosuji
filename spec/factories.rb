@@ -20,6 +20,11 @@ FactoryGirl.define do
     trait :active do
       status Game::ACTIVE
     end
+
+    factory :new_active_game, traits: [:active] do
+      association :black_player, factory: :user
+      association :white_player, factory: :user
+    end
   end
 
 end
