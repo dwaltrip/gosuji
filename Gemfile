@@ -18,7 +18,7 @@ group :development, :test do
   gem 'debugger'
 
   ## used for more advanced testing set-up
-  #gem 'guard-rspec', '2.5.0'
+  gem 'guard-rspec', '2.5.0'
 end
 
 group :test do
@@ -30,14 +30,14 @@ group :test do
   gem 'i18n', '>= 0.6.9'
 
   ## used for more advanced testing set-up
-  #gem 'rb-notifu', '0.0.4'
-  #gem 'win32console', '1.3.2'
-  #gem 'wdm', '0.1.0'
+  gem 'rb-notifu', '0.0.4'
+  gem 'win32console', '1.3.2'
+  gem 'wdm', '0.1.0'
 
   ## used for more advanced testing set-up
   gem 'spork-rails', '4.0.0'
-  #gem 'guard-spork', '1.5.0'
-  #gem 'childprocess', '0.3.9'
+  gem 'guard-spork', '1.5.0'
+  gem 'childprocess', '0.3.9'
 end
 
 # Use SCSS for stylesheets
