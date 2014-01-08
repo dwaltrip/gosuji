@@ -78,7 +78,7 @@ describe Game do
     end
 
     INVALID_STATUSES.each do |invalid_status|
-      it "does not update/create anything if game status is '#{invalid_status}'" do
+      it "doesn't update or create, and returns false if game status is '#{invalid_status}'" do
         game = create(:new_active_game)
         game.status = Game.const_get(invalid_status)
         game.save
@@ -91,7 +91,7 @@ describe Game do
       end
     end
 
-    it "does not update/create anything if non-active player is current user" do
+    it "doesn't update or create, and returns false if non-active player is current user" do
       game = create(:new_active_game)
       Board.initial_board(game)
       most_recent_board_id_before = game.boards[-1].id
@@ -101,7 +101,7 @@ describe Game do
       expect(game.boards[-1].id).to eq(most_recent_board_id_before)
     end
 
-    it "does not update/create anything if other invalid user is current user" do
+    it "doesn't update or create, and returns false if other invalid user is current user" do
       game = create(:new_active_game)
       Board.initial_board(game)
       other_user = create(:user)
@@ -113,4 +113,109 @@ describe Game do
 
   end
 
+  describe ".pass" do
+
+    it "creates another board with identical state to the previous board" do
+      size = 5
+      game = create(:new_active_game, board_size: size)
+      Board.initial_board(game)
+      play_some_moves(game)
+
+      move_num_before = game.move_num
+      board_before = game.boards.to_a[-1]
+      game.pass(game.active_player)
+
+      expect(move_num_before + 1).to eq(game.move_num)
+      black_stone_count = 0
+      white_stone_count = 0
+      (size**2).times do |pos|
+        previous_state = board_before.state(pos)
+        black_stone_count += 1 if previous_state == GoApp::BLACK_STONE
+        white_stone_count += 1 if previous_state == GoApp::WHITE_STONE
+
+        expect(previous_state).to eq(game.active_board.state(pos))
+      end
+
+      expect(black_stone_count).to eq(2)
+      expect(white_stone_count).to eq(2)
+    end
+
+    it "sets pass boolean to true and pos to nil for the new board" do
+      game = create(:new_active_game)
+      Board.initial_board(game)
+      game.new_move(1, game.black_player)
+
+      expect(game.active_board.pass).to be_false
+      expect(game.active_board.pos).not_to be_nil
+
+      game.pass(game.active_player)
+
+      expect(game.active_board.pass).to be_true
+      expect(game.active_board.ko).to be_nil
+      expect(game.active_board.pos).to be_nil
+    end
+
+    it "sets game status to 'END_GAME_SCORING' after two passes in a row" do
+      game = create(:new_active_game)
+      Board.initial_board(game)
+
+      2.times do
+        expect(game.status).to eq(Game::ACTIVE)
+        game.pass(game.active_player)
+      end
+
+      expect(game.status).to eq(Game::END_GAME_SCORING)
+    end
+
+    INVALID_STATUSES.each do |invalid_status|
+      it "doesn't update or create, and returns false if game status is '#{invalid_status}'" do
+        game = create(:new_active_game)
+        game.status = Game.const_get(invalid_status)
+        game.save
+
+        Board.initial_board(game)
+        most_recent_board_id_before = game.boards[-1].id
+
+        expect(game.pass(game.black_player)).to be_false
+        expect(game.boards[-1].id).to eq(most_recent_board_id_before)
+      end
+    end
+
+    it "doesn't update or create, and returns false if non-active player is current user" do
+      game = create(:new_active_game)
+      Board.initial_board(game)
+      most_recent_board_id_before = game.boards[-1].id
+
+      # black goes first by default
+      expect(game.pass(game.white_player)).to be_false
+      expect(game.boards[-1].id).to eq(most_recent_board_id_before)
+    end
+
+    it "doesn't update or create, and returns false if other invalid user is current user" do
+      game = create(:new_active_game)
+      Board.initial_board(game)
+      other_user = create(:user)
+      most_recent_board_id_before = game.boards[-1].id
+
+      expect(game.pass(other_user)).to be_false
+      expect(game.boards[-1].id).to eq(most_recent_board_id_before)
+    end
+  end
+
+end
+
+# this could be a little faster if it simply modifies the state of the initial board
+def play_some_moves(game)
+  first_player = game.active_player
+  second_player = game.opponent(first_player)
+  size = game.board_size
+  moves = [size + 1, 2*size - 2, 3*size + 1, 4*size - 2]
+
+  i = 0
+  2.times do
+    [first_player, second_player].each do |player|
+      game.new_move(moves[i], player)
+      i += 1
+    end
+  end
 end

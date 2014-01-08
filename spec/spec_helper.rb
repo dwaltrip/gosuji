@@ -13,6 +13,17 @@ Spork.prefork do
   require File.expand_path("../../config/environment", __FILE__)
   require 'rspec/rails'
   require 'rspec/autorun'
+  require 'capybara_wait_until'
+
+  js_logger = File.open(File.expand_path("../../log/test_js_console.log", __FILE__), "a+")
+  js_logger.write("\n#{'*'*55}\nNew test run -- current time: #{Time.now}\n#{'*'*55}\n")
+
+  require 'capybara/poltergeist'
+  Capybara.register_driver :poltergeist do |app|
+    Capybara::Poltergeist::Driver.new(app, :phantomjs_logger => js_logger)
+  end
+  Capybara.default_driver = :poltergeist
+  Capybara.javascript_driver = :poltergeist
 
   # Requires supporting ruby files with custom matchers and macros, etc,
   # in spec/support/ and its subdirectories.
@@ -52,7 +63,25 @@ Spork.prefork do
     # the seed, which is printed after each run.
     #     --seed 1234
     #config.order = "random"
+
+    config.treat_symbols_as_metadata_keys_with_true_values = true
   end
+
+  # ActiveRecord monkey patch from:
+  # http://blog.plataformatec.com.br/2011/12/three-tips-to-improve-the-performance-of-your-test-suite/
+  # Not 100% sure this is necessary, but should ensure that Capybara JS tests do not mess up test env DB transactions
+  class ActiveRecord::Base
+    mattr_accessor :shared_connection
+    @@shared_connection = nil
+
+    def self.connection
+      @@shared_connection || retrieve_connection
+    end
+  end
+
+  # Forces all threads to share the same connection. This works on
+  # Capybara because it starts the web server in a thread.
+  ActiveRecord::Base.shared_connection = ActiveRecord::Base.connection
 end
 
 Spork.each_run do
