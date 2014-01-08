@@ -20,6 +20,10 @@ module Rulebook
       Rails.logger.info "-- Rulebook.initialize -- done"
     end
 
+    def playable?(move_pos, player_color)
+      true
+    end
+
     def play_move(move_pos, player_color)
       Rails.logger.info "-- Rulebook.play_move -- move_pos= #{move_pos.inspect}"
       set_player_colors(player_color)

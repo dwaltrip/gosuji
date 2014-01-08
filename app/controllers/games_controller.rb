@@ -1,6 +1,6 @@
 class GamesController < ApplicationController
-  before_action :find_game, only: [:show, :join, :update]
   before_filter :require_login, :except => :index
+  before_action :find_game, only: [:show, :join, :update]
 
   def find_game
     @game = Game.find(params[:id])
@@ -50,24 +50,26 @@ class GamesController < ApplicationController
   def update
     logger.info "-- games#update -- #{formatted_game_info(@game)}, params[:new_move]= #{params[:new_move].inspect}"
 
-    @game.new_move(Integer(params[:new_move], 10), current_user)
-    render_game_helper
+    if params.key?(:new_move) && @game.new_move(params[:new_move].to_i, current_user)
+      @just_played_new_move = true
+      render_game_helper
 
-    opponent = @game.opponent(current_user)
-    opponent_tiles = decorated_tiles(opponent).map do |pos, tile|
-      { pos: pos,
-        html: tile.to_html(@game.viewer(opponent)) }
+      opponent = @game.opponent(current_user)
+      opponent_tiles = decorated_tiles(opponent).map do |pos, tile|
+        { pos: pos,
+          html: tile.to_html(@game.viewer(opponent)) }
+      end
+
+      # publish updated info to listener on Node.js server which then updates opponent client via websockets
+      # will later add in very similar functionality for any observing users (not playing in the game)
+      $redis.publish 'game-updates', ActiveSupport::JSON.encode({
+        room_id: "game-#{@game.id}",
+        move_id: params[:move_id],
+        tiles: opponent_tiles,
+        invalid_moves: @game.invalid_moves(opponent),
+        header_html: render_to_string(partial: 'game_stats', locals: @header_inputs)
+      })
     end
-
-    # publish updated info to listener on Node.js server which then updates opponent client via websockets
-    # will later add in very similar functionality for any observing users (not playing in the game)
-    $redis.publish 'game-updates', ActiveSupport::JSON.encode({
-      room_id: "game-#{@game.id}",
-      move_id: params[:move_id],
-      tiles: opponent_tiles,
-      invalid_moves: @game.invalid_moves(opponent),
-      header_html: render_to_string(partial: 'game_stats', locals: @header_inputs)
-    })
 
     respond_to do |format|
       format.html { render "show" }
@@ -95,14 +97,14 @@ class GamesController < ApplicationController
   end
 
   def decorated_tiles(player)
-    if @game.just_played_new_move
+    if @just_played_new_move
       tiles = {}
     else
       tiles = Array.new(@game.board_size ** 2)
     end
 
     viewer = @game.viewer(player)
-    @game.tiles_to_render(player).each do |pos, tile_state|
+    @game.tiles_to_render(player, @just_played_new_move).each do |pos, tile_state|
       tiles[pos] = TilePresenter.new(
         board_size: @game.board_size,
         state: tile_state,

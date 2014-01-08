@@ -6,12 +6,11 @@ class Game < ActiveRecord::Base
 
   validates :description, length: { maximum: 40 }
 
-  attr_reader :just_played_new_move
-
   # game.status constants
   OPEN = 0
   ACTIVE = 1
-  FINISHED = 2
+  END_GAME_SCORING = 2
+  FINISHED = 3
 
   # game.mode constants
   RANKED = 0
@@ -40,8 +39,8 @@ class Game < ActiveRecord::Base
     active_board.move_num + 1
   end
 
-  def tiles_to_render(player)
-    if @just_played_new_move
+  def tiles_to_render(player, just_played_new_move=false)
+    if just_played_new_move
       tiles_to_update = self.get_rulebook.tiles_to_update(self.player_color(player))
 
       # rulebook doesnt have knowledge of previous board_states
@@ -164,13 +163,22 @@ class Game < ActiveRecord::Base
 
   def new_move(new_move_pos, current_player)
     rulebook = self.get_rulebook
-    rulebook.play_move(new_move_pos, self.player_color(current_player))
-    @just_played_new_move = true
+    color = self.player_color(current_player)
 
-    self.create_next_board(new_move_pos)
+    if self.active? && current_player == self.active_player && rulebook.playable?(new_move_pos, color)
+      rulebook.play_move(new_move_pos, color)
 
-    logger.info "-- Game.new_move -- rulebook.captured_stones: #{rulebook.captured_stones.inspect}"
-    logger.info "-- Game.new_move -- rulebook.invalid_moves: #{rulebook.invalid_moves.inspect}"
+      self.create_next_board(new_move_pos)
+
+      logger.info "-- Game.new_move -- rulebook.captured_stones: #{rulebook.captured_stones.inspect}"
+      logger.info "-- Game.new_move -- rulebook.invalid_moves: #{rulebook.invalid_moves.inspect}"
+
+      true
+    else
+      false
+    end
+
+
   end
 
   def create_next_board(new_move_pos)
@@ -241,7 +249,7 @@ class Game < ActiveRecord::Base
       params = { size: self.board_size, board: self.active_board.tiles }
       @rulebook = Rulebook::Handler.new(params)
 
-      if (not @just_played_new_move) && self.active_board.ko
+      if self.active_board.ko
         @rulebook.set_ko_position(self.active_board.ko, self.player_color(self.active_player))
       end
     end
