@@ -20,6 +20,7 @@ module Rulebook
       Rails.logger.info "-- Rulebook.initialize -- done"
     end
 
+    # TODO: implement this!
     def playable?(move_pos, player_color)
       true
     end
@@ -28,10 +29,7 @@ module Rulebook
       Rails.logger.info "-- Rulebook.play_move -- move_pos= #{move_pos.inspect}"
       set_player_colors(player_color)
 
-      if @_ko_position
-        @former_ko_position = @_ko_position.dup
-        remove_instance_variable(:@_ko_position)
-      end
+      reset_ko
 
       killing_moves = get_killing_moves()[@active_player_color]
       @captured_stones = Set.new
@@ -92,6 +90,10 @@ module Rulebook
       Rails.logger.info "-- Rulebook.play_move -- invalid_moves: #{invalid_moves.inspect}"
     end
 
+    def pass
+      reset_ko
+    end
+
     def tiles_to_update(player_color)
       color = TILE_VALUES[player_color]
 
@@ -102,7 +104,7 @@ module Rulebook
       tiles.merge(@former_invalid_moves[color]) if @former_invalid_moves
       tiles.add(@_ko_position[color]) if @_ko_position && @_ko_position[color]
       tiles.add(@former_ko_position[color]) if @former_ko_position && @former_ko_position[color]
-      tiles.add(@new_move_pos)
+      tiles.add(@new_move_pos) if @new_move_pos
 
       tiles
     end
@@ -238,6 +240,13 @@ module Rulebook
       # return a hash with :white/:black as keys, instead of board DB table color vals (true/false)
       { TILE_VALUES_REVERSE[@active_player_color] => _invalid_moves[@active_player_color],
         TILE_VALUES_REVERSE[@enemy_color] => _invalid_moves[@enemy_color] }
+    end
+
+    def reset_ko
+      if @_ko_position
+        @former_ko_position = @_ko_position.dup
+        remove_instance_variable(:@_ko_position)
+      end
     end
 
     def update_neighbors(pos, color)

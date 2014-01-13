@@ -1,13 +1,12 @@
 <h1>Game in progress:
-  <%= game.black_player.username %> vs.
-  <%= game.white_player.username %>!
+  <%= game.white_player.username %> (white) vs.
+  <%= game.black_player.username %> (black)
 </h1>
 <%#= link_to "(Refresh game)", game %>
 
 <div class='game-status-info'>
   <p>
-    Current Turn -- <%= game.active_player.username %> (<%= active_color %>),
-    Move: <%= game.next_move_num %><br>
+    <%= move_status_message(game) %><br>
     Captures -- Black: <%= game.black_capture_count %>,
                 White: <%= game.white_capture_count %>
   </p>

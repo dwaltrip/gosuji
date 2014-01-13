@@ -48,10 +48,29 @@ class GamesController < ApplicationController
   end
 
   def update
-    logger.info "-- games#update -- #{formatted_game_info(@game)}, params[:new_move]= #{params[:new_move].inspect}"
+    logger.info "-- games#update -- #{formatted_game_info(@game)}"
 
-    if params.key?(:new_move) && @game.new_move(params[:new_move].to_i, current_user)
-      @just_played_new_move = true
+    @invalid_request = true
+
+    if params.key?(:new_move)
+      if @game.new_move(params[:new_move].to_i, current_user)
+        @just_played_new_move = true
+        @invalid_request = false
+      end
+
+    elsif params.key?(:pass)
+      logger.info "-- games#update -- params[:pass]= #{params[:pass].inspect}"
+      if @game.pass(current_user)
+        @just_played_new_move = true
+        @invalid_request = false
+      end
+
+    else
+      logger.info "-- games#update -- none of the expected data was found in params, which is a bit fishy"
+    end
+
+
+    unless @invalid_request
       render_game_helper
 
       opponent = @game.opponent(current_user)
@@ -60,14 +79,13 @@ class GamesController < ApplicationController
           html: tile.to_html(@game.viewer(opponent)) }
       end
 
-      # publish updated info to listener on Node.js server which then updates opponent client via websockets
-      # will later add in very similar functionality for any observing users (not playing in the game)
+      # publish updated info to redis subscriber on Node.js server which then updates opponent client via websockets
       $redis.publish 'game-updates', ActiveSupport::JSON.encode({
         room_id: "game-#{@game.id}",
         move_id: params[:move_id],
         tiles: opponent_tiles,
         invalid_moves: @game.invalid_moves(opponent),
-        header_html: render_to_string(partial: 'game_stats', locals: @header_inputs)
+        header_html: render_to_string(partial: 'game_stats', locals: { game: @game })
       })
     end
 
@@ -92,7 +110,6 @@ class GamesController < ApplicationController
 
   def render_game_helper
     @tiles = decorated_tiles(current_user)
-    @header_inputs = { game: @game, active_color: @game.player_color(@game.active_player).to_s }
     logger.info "-- games#render_game_helper -- @game.invalid_moves: #{@game.invalid_moves.inspect}"
   end
 
