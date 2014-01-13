@@ -99,6 +99,7 @@ function get_socket() {
         console.log("    inside sockjs.on('game-updates', cb) callback, data= " + JSON.stringify(data));
 
         update_game(data.tiles, data.invalid_moves, data.header_html);
+        sockjs.emit('received-game-update', { move_id: data.move_id });
     });
 
     return sockjs;

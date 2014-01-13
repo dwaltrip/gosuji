@@ -22,7 +22,7 @@
 
 <%= javascript_tag do %>
   window.game_id = '<%= @game.id %>';
-  window.move_num = '<%= @game.move_num + 1 %>';
+  window.move_num = <%= @game.move_num + 1 %>;
 <% end %>
 
 <% javascript 'games.js', 'event_emitter.js', 'sockjs_client', 'sockjs-0.3.min.js' %>
