@@ -39,7 +39,7 @@ class Game < ActiveRecord::Base
     active_board.move_num + 1
   end
 
-  def tiles_to_render(player, just_played_new_move=false)
+  def tiles_to_render(player, just_played_new_move)
     if just_played_new_move
       tiles_to_update = self.get_rulebook.tiles_to_update(self.player_color(player))
 
@@ -177,8 +177,29 @@ class Game < ActiveRecord::Base
     else
       false
     end
+  end
 
+  def pass(current_player)
+    if self.active? && current_player == self.active_player
+      if self.active_board.pass
+        self.status = END_GAME_SCORING
+      end
 
+      rulebook = self.get_rulebook
+      rulebook.pass
+
+      new_board = self.active_board.dup
+      new_board.move_num += 1
+      new_board.ko = nil
+      new_board.pos = nil
+      new_board.pass = true
+      new_board.save
+
+      clear_association_cache
+      true
+    else
+      false
+    end
   end
 
   def create_next_board(new_move_pos)
@@ -221,6 +242,10 @@ class Game < ActiveRecord::Base
 
   def not_open?
     self.status != OPEN
+  end
+
+  def end_game_scoring?
+    self.status == END_GAME_SCORING
   end
 
   def previous_captured_count

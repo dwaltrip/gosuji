@@ -1,12 +1,19 @@
-console.log('beginnig to render update.js.erb');
+<% if @invalid_request %>
+  console.log("Invalid request to games#update");
 
-$('#header_container').html('<%= j render('game_stats', @header_inputs) %>');
+<% else %>
+  console.log('beginnig to render update.js.erb');
 
-<% @tiles.each do |pos, tile| %>
-  var new_tile = $('<%= j render('tile', tile: tile) %>').find('.tile_container');
-  $('<%= "#tile-#{pos}" %>').html(new_tile[0].outerHTML);
+  $('#header_container').html('<%= j render('game_stats', { game: @game }) %>');
+
+  <% if @tiles %>
+    <% @tiles.each do |pos, tile| %>
+      var new_tile = $('<%= j render('tile', tile: tile) %>').find('.tile_container');
+      $('<%= "#tile-#{pos}" %>').html(new_tile[0].outerHTML);
+    <% end %>
+  <% end %>
+
+  window.move_num = <%= @game.move_num + 1 %>;
+
+  console.log('finished updating via ajax');
 <% end %>
-
-window.move_num = <%= @game.move_num %>;
-
-console.log('finished updating via ajax');

@@ -21,6 +21,8 @@ module GoApp
 
   TILE_PIXEL_SIZE = 29
 
+  COLUMN_LABELS = []
+
   class Application < Rails::Application
     config.active_record.schema_format = :ruby
 

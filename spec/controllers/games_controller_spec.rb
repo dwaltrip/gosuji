@@ -3,7 +3,15 @@ require 'spec_helper'
 def setup_and_create_game
   game = create(:new_active_game)
   Board.initial_board(game)
-  session[:user_id] = game.black_player.id
+  session[:user_id] = game.active_player.id
+  game
+end
+
+def setup_for_game_action(action_type)
+  game = setup_and_create_game
+  allow(game).to receive(action_type).and_return(true)
+  allow(game).to receive(:tiles_to_render) { Hash.new }
+  allow(Game).to receive(:find).and_return(game)
   game
 end
 
@@ -42,25 +50,37 @@ describe GamesController do
 
     context "when params has new_move data" do
 
-      def setup_for_new_move
-        game = setup_and_create_game
-        allow(game).to receive(:new_move).and_return(true)
-        allow(game).to receive(:tiles_to_render) { Hash.new }
-        allow(Game).to receive(:find).and_return(game)
-        game
-      end
-
       it "calls game.new_move with correct argument" do
-        game = setup_for_new_move
+        game = setup_for_game_action(:new_move)
+        current_player = game.active_player
         xhr :post, :update, id: game, new_move: 1
 
-        expect(game).to have_received(:new_move).with(1, anything())
+        expect(game).to have_received(:new_move).with(1, current_player)
       end
 
       it "publishes new move data to NodeJS server via redis (for websocket updating)" do
-        game = setup_for_new_move
+        game = setup_for_game_action(:new_move)
         allow($redis).to receive(:publish)
         xhr :post, :update, id: game, new_move: 2
+
+        expect($redis).to have_received(:publish).once
+      end
+    end
+
+    context "when params has game update data 'pass'" do
+
+      it "calls game.pass with correct argument" do
+        game = setup_for_game_action(:pass)
+        current_player = game.active_player
+        xhr :post, :update, id: game, pass: 'Pass'
+
+        expect(game).to have_received(:pass).with(current_player)
+      end
+
+      it "publishes 'pass' data to NodeJS server via redis (for websocket updating)" do
+        game = setup_for_game_action(:pass)
+        allow($redis).to receive(:publish)
+        xhr :post, :update, id: game, pass: 'Pass'
 
         expect($redis).to have_received(:publish).once
       end
