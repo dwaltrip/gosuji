@@ -65,6 +65,8 @@ Spork.prefork do
     #config.order = "random"
 
     config.treat_symbols_as_metadata_keys_with_true_values = true
+
+    config.filter_run_excluding :skip => true
   end
 
   # ActiveRecord monkey patch from:

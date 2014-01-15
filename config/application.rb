@@ -8,7 +8,7 @@ Bundler.require(:default, Rails.env)
 
 module GoApp
 
-  MIN_BOARD_SIZE = 7
+  MIN_BOARD_SIZE = 5
   BOARD_SIZE = 19
   MAX_BOARD_SIZE = 35
 
@@ -16,7 +16,7 @@ module GoApp
   BLACK_STONE = false
   WHITE_STONE = true
 
-  BOARD_SIZES = (7..19).to_a
+  BOARD_SIZES = (MIN_BOARD_SIZE..MAX_BOARD_SIZE).to_a
   STAR_POINTS = Hash.new
 
   TILE_PIXEL_SIZE = 29
