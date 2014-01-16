@@ -6,6 +6,8 @@ class Game < ActiveRecord::Base
 
   validates :description, length: { maximum: 40 }
 
+  after_touch :clear_association_cache
+
   # game.status constants
   OPEN = 0
   ACTIVE = 1
@@ -189,13 +191,13 @@ class Game < ActiveRecord::Base
       rulebook.pass
 
       new_board = self.active_board.dup
+      new_board.game = self
       new_board.move_num += 1
       new_board.ko = nil
       new_board.pos = nil
       new_board.pass = true
       new_board.save
 
-      clear_association_cache
       true
     else
       false
@@ -214,9 +216,6 @@ class Game < ActiveRecord::Base
     ko_pos = self.get_rulebook.ko_position(self.player_color(self.inactive_player))
     next_board.ko = ko_pos if ko_pos
     next_board.save
-
-    # reset board query caches (should look into this more)
-    clear_association_cache
   end
 
   def invalid_moves(player=nil)

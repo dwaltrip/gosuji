@@ -1,5 +1,5 @@
 class Board < ActiveRecord::Base
-  belongs_to :game, inverse_of: :boards
+  belongs_to :game, inverse_of: :boards, touch: true
 
   DB_STONE_MAPPINGS = {
     :black => GoApp::BLACK_STONE,
