@@ -58,6 +58,8 @@ feature "gameplay actions" do
 
         expect(page).to have_image("stone", count: move_num)
         expect(page).to have_image("blank_tiles", count: size**2 - move_num)
+
+        expect(page).to have_content("Move #{counter + 1}")
       end
     end
   end
@@ -77,6 +79,62 @@ feature "gameplay actions" do
 
     in_browsers(players) do |player|
       expect(page).to have_content("#{game.player_color(first_player).capitalize[0]} pass")
+      expect(page).to have_content("Move 1")
+    end
+  end
+
+  scenario "player plays move, then requests undo, and other player grants the undo" do
+    size = GoApp::MIN_BOARD_SIZE
+    players, game = setup_game_and_sessions(board_size: size)
+    first_player = game.active_player    # this is the player who will grant the undo
+    second_player = game.inactive_player # this is the player who will request an undo
+
+    first_tile = "#tile-3"
+    tile_to_undo = "#tile-13"
+    tiles = { first_player.id => first_tile, second_player.id => tile_to_undo }
+
+    # each player makes a move
+    # undo should be disabled before a player makes their first move, and then enabled
+    in_browsers(players) do |player|
+      expect(page).not_to have_button("Undo")
+      page.find(tiles[player.id]).click
+      expect(page).to have_button("Undo")
+    end
+    #sleep(1)
+
+    # second player requests undo
+    in_browser(second_player) do
+      page.find_button('Undo').click
+    end
+
+    # first player should see popup allowing approve/deny the request for undo
+    in_browser(first_player) do
+      expect(page).to have_content("has requested an undo")
+      expect(page.find("#undo-approval-form")).to have_button("Yes")
+      expect(page.find("#undo-approval-form")).to have_button("No")
+
+      # approve the undo request
+      within "#undo-approval-form" do
+        click_button "Yes"
+      end
+    end
+    sleep(1)
+
+    # both players should now see the updated board with the most recent move reverted
+    in_browsers(players) do |player|
+      expect(page.find(first_tile)).to have_image("#{game.player_color(first_player)}_stone_highlighted")
+      expect(page.find(tile_to_undo)).to have_image("blank_tiles")
+
+      expect(page).to have_image("stone", count: 1)
+      expect(page).to have_image("blank_tiles", count: size**2 - 1)
+
+      # check game status message
+      expect(page).to have_content("Move 1")
+    end
+
+    # undo should not be possible again, as the only move made by this player was undone already
+    in_browser(second_player) do
+      expect(page).not_to have_button("Undo")
     end
   end
 
@@ -159,4 +217,3 @@ class Cycle
 
   def to_a; @enum; end
 end
-

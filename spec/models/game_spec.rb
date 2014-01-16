@@ -1,14 +1,14 @@
 require 'spec_helper'
 
 # for game actions
-INVALID_STATUSES = [:OPEN, :FINISHED]
+INVALID_STATUSES = [:OPEN, :FINISHED, :END_GAME_SCORING]
+INVALID_STATUSES_FOR_UNDO = [:OPEN, :FINISHED]
 
 describe Game do
-  let(:game) { Game.new }
 
   context "validations" do
-
     it "has a description with no more than 40 characters" do
+      game = Game.new
       game.should be_valid
       game.description = "super duper more than 40 character long descriptive piece of text"
       game.should_not be_valid
@@ -16,7 +16,6 @@ describe Game do
   end
 
   describe ".move_num" do
-
     it "returns correct values for a new game and incremets by 1 after each move" do
       game = create(:new_active_game)
       Board.initial_board(game)
@@ -28,19 +27,18 @@ describe Game do
   end
 
   describe ".new_move" do
-
     it "creates new board with correct attributes" do
       game = create(:new_active_game)
       Board.initial_board(game)
 
       new_move_pos = 10
-      previous_board = game.boards[-1]
-      expect(previous_board.state(new_move_pos)).to be_nil
+      prev_board = game.boards[-1]
+      expect(prev_board.state(new_move_pos)).to be_nil
 
       game.new_move(10, game.black_player)
       new_board = game.boards[-1]
 
-      expect(previous_board.id).not_to eq(new_board.id)
+      expect(prev_board.id).not_to eq(new_board.id)
       expect(new_board.pos).to eq(new_move_pos)
       expect(new_board.state(new_move_pos)).to eq(GoApp::BLACK_STONE)
       expect(new_board.ko).to be_nil
@@ -80,41 +78,38 @@ describe Game do
     INVALID_STATUSES.each do |invalid_status|
       it "doesn't update or create, and returns false if game status is '#{invalid_status}'" do
         game = create(:new_active_game)
-        game.status = Game.const_get(invalid_status)
-        game.save
+        game.update_attribute(:status, Game.const_get(invalid_status))
 
         Board.initial_board(game)
-        most_recent_board_id_before = game.boards[-1].id
+        prev_board = game.boards[-1]
 
         expect(game.new_move(5, game.black_player)).to be_false
-        expect(game.boards[-1].id).to eq(most_recent_board_id_before)
+        expect(game.boards[-1].id).to eq(prev_board.id)
       end
     end
 
     it "doesn't update or create, and returns false if non-active player is current user" do
       game = create(:new_active_game)
       Board.initial_board(game)
-      most_recent_board_id_before = game.boards[-1].id
+      prev_board = game.boards[-1]
 
       # black goes first by default
       expect(game.new_move(5, game.white_player)).to be_false
-      expect(game.boards[-1].id).to eq(most_recent_board_id_before)
+      expect(game.boards[-1].id).to eq(prev_board.id)
     end
 
     it "doesn't update or create, and returns false if other invalid user is current user" do
       game = create(:new_active_game)
       Board.initial_board(game)
       other_user = create(:user)
-      most_recent_board_id_before = game.boards[-1].id
+      prev_board = game.boards[-1]
 
       expect(game.new_move(5, other_user)).to be_false
-      expect(game.boards[-1].id).to eq(most_recent_board_id_before)
+      expect(game.boards[-1].id).to eq(prev_board.id)
     end
-
   end
 
   describe ".pass" do
-
     it "creates another board with identical state to the previous board" do
       size = 5
       game = create(:new_active_game, board_size: size)
@@ -170,35 +165,111 @@ describe Game do
     INVALID_STATUSES.each do |invalid_status|
       it "doesn't update or create, and returns false if game status is '#{invalid_status}'" do
         game = create(:new_active_game)
-        game.status = Game.const_get(invalid_status)
-        game.save
+        game.update_attribute(:status, Game.const_get(invalid_status))
 
         Board.initial_board(game)
-        most_recent_board_id_before = game.boards[-1].id
+        prev_board = game.boards[-1]
 
         expect(game.pass(game.black_player)).to be_false
-        expect(game.boards[-1].id).to eq(most_recent_board_id_before)
+        expect(game.boards[-1].id).to eq(prev_board.id)
       end
     end
 
     it "doesn't update or create, and returns false if non-active player is current user" do
       game = create(:new_active_game)
       Board.initial_board(game)
-      most_recent_board_id_before = game.boards[-1].id
+      prev_board = game.boards[-1]
 
       # black goes first by default
       expect(game.pass(game.white_player)).to be_false
-      expect(game.boards[-1].id).to eq(most_recent_board_id_before)
+      expect(game.boards[-1].id).to eq(prev_board.id)
     end
 
     it "doesn't update or create, and returns false if other invalid user is current user" do
       game = create(:new_active_game)
       Board.initial_board(game)
       other_user = create(:user)
-      most_recent_board_id_before = game.boards[-1].id
+      prev_board = game.boards[-1]
 
       expect(game.pass(other_user)).to be_false
-      expect(game.boards[-1].id).to eq(most_recent_board_id_before)
+      expect(game.boards[-1].id).to eq(prev_board.id)
+    end
+  end
+
+  describe ".undo" do
+    def setup_for_undo
+      game = create(:new_active_game)
+      Board.initial_board(game)
+
+      game.new_move(3, game.black_player)
+      return game
+    end
+
+    it "deletes most recent board when inactive player performs undo" do
+      game = setup_for_undo
+      prev_boards = game.boards.to_a
+
+      game.undo(game.black_player)
+
+      expect(game.boards.count).to eq(prev_boards.length - 1)
+      expect(prev_boards[-1]).to be_destroyed
+      expect(prev_boards[-1].id).not_to eq(game.boards[-1].id)
+      expect(prev_boards[-2].id).to eq(game.boards[-1].id)
+    end
+
+    it "deletes the last two boards when active player peforms undo" do
+      game = setup_for_undo
+      game.new_move(13, game.white_player)
+      prev_boards = game.boards.to_a
+
+      # it is black's turn, so undo-ing last black move will delete two boards
+      game.undo(game.black_player)
+
+      expect(game.boards.count).to eq(prev_boards.length - 2)
+      expect(prev_boards[-1]).to be_destroyed
+      expect(prev_boards[-2]).to be_destroyed
+      expect(prev_boards[-1].id).not_to eq(game.boards[-1].id)
+      expect(prev_boards[-2].id).not_to eq(game.boards[-1].id)
+      expect(prev_boards[-3].id).to eq(game.boards[-1].id)
+    end
+
+    it "does not perform updates/deletions and returns false if player hasn't made any moves yet" do
+      game = setup_for_undo
+      prev_boards = game.boards.to_a
+
+      # white player hasn't played a move yet
+      expect(game.undo(game.white_player)).to be_false
+
+      expect(game.boards[-1].id).to eq(prev_boards[-1].id)
+      expect(game.boards.length).to eq(prev_boards.length)
+      expect(prev_boards[-1]).to be_persisted
+    end
+
+    it "does not perform updates/deletions and returns false if current user is not a player in this game" do
+      game = setup_for_undo
+      prev_boards = game.boards.to_a
+      invalid_player = create(:user)
+
+      # white player hasn't played a move yet
+      expect(game.undo(invalid_player)).to be_false
+
+      expect(game.boards[-1].id).to eq(prev_boards[-1].id)
+      expect(game.boards.length).to eq(prev_boards.length)
+      expect(prev_boards[-1]).to be_persisted
+    end
+
+    INVALID_STATUSES_FOR_UNDO.each do |invalid_status|
+      it "doesn't perform updates/deletions, and returns false if game status is '#{invalid_status}'" do
+        game = setup_for_undo
+        prev_boards = game.boards.to_a
+        game.update_attribute(:status, Game.const_get(invalid_status))
+
+        expect(game.undo(game.black_player)).to be_false
+
+        expect(game.boards[-1].id).to eq(prev_boards[-1].id)
+        expect(game.boards.length).to eq(prev_boards.length)
+        expect(prev_boards[-1]).to be_persisted
+      end
     end
   end
 
