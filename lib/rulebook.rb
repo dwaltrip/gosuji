@@ -94,17 +94,47 @@ module Rulebook
       reset_ko
     end
 
+    def calculate_undo_updates(prev_board, prev_invalid_moves, new_last_move_played)
+      board_state_differences = Set.new
+
+      @board.each_with_index do |tile_state, pos|
+        if tile_state != prev_board.state(pos)
+          board_state_differences.add pos
+        end
+      end
+
+      current_invalid_moves = invalid_moves
+
+      @undo_updates = {}
+      TILE_VALUES.keys.each do |color|
+        # need to re-render the complement of the intersection of the two sets of invalid moves (before/after undo)
+        @undo_updates[color] = (prev_invalid_moves[color] | current_invalid_moves[color])
+        @undo_updates[color] -= (prev_invalid_moves[color] & current_invalid_moves[color])
+
+        #add in board state differences
+        @undo_updates[color] += board_state_differences
+
+        #add in last move played
+        @undo_updates[color].add new_last_move_played if new_last_move_played
+      end
+    end
+
     def tiles_to_update(player_color)
       color = TILE_VALUES[player_color]
 
-      tiles = Set.new
-      tiles.merge(@new_killing_moves[color]) if @new_killing_moves
-      tiles.merge(invalid_moves[player_color])
-      tiles.merge(@captured_stones) if @captured_stones
-      tiles.merge(@former_invalid_moves[color]) if @former_invalid_moves
-      tiles.add(@_ko_position[color]) if @_ko_position && @_ko_position[color]
-      tiles.add(@former_ko_position[color]) if @former_ko_position && @former_ko_position[color]
-      tiles.add(@new_move_pos) if @new_move_pos
+      if @undo_updates
+        # undo_updates uses :black/:white as keys, because it is based off invalid_moves hash
+        tiles = @undo_updates[player_color]
+      else
+        tiles = Set.new
+        tiles.merge(@new_killing_moves[color]) if @new_killing_moves
+        tiles.merge(invalid_moves[player_color])
+        tiles.merge(@captured_stones) if @captured_stones
+        tiles.merge(@former_invalid_moves[color]) if @former_invalid_moves
+        tiles.add(@_ko_position[color]) if @_ko_position && @_ko_position[color]
+        tiles.add(@former_ko_position[color]) if @former_ko_position && @former_ko_position[color]
+        tiles.add(@new_move_pos) if @new_move_pos
+      end
 
       tiles
     end

@@ -29,6 +29,7 @@ describe GamesController do
         expect(response).to redirect_to log_in_url
       end
 
+      # this test feels somewhat contrived/useless
       it "stores current game in @game" do
         game = setup_and_create_game
         xhr :post, :update, id: game
@@ -50,7 +51,7 @@ describe GamesController do
 
     context "when params has new_move data" do
 
-      it "calls game.new_move with correct argument" do
+      it "calls game.new_move with correct parameters" do
         game = setup_for_game_action(:new_move)
         current_player = game.active_player
         xhr :post, :update, id: game, new_move: 1
@@ -69,7 +70,7 @@ describe GamesController do
 
     context "when params has game update data 'pass'" do
 
-      it "calls game.pass with correct argument" do
+      it "calls game.pass with correct parameters" do
         game = setup_for_game_action(:pass)
         current_player = game.active_player
         xhr :post, :update, id: game, pass: 'Pass'

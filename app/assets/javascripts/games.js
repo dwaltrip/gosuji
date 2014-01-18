@@ -1,21 +1,22 @@
 console.log('Successfully loaded games.js')
 
 var socket = null;
+var modal = new Modal({ closeButton: false });
 
 var ready = function() {
     add_move_handler();
 
-    $('#board-form').on('submit.game_action', function(e) {
+    $('#game-action-form').on('submit.game_action', function(e) {
         e.preventDefault();
-        console.log("Inside #board-form on 'submit' callback");
+        console.log("Inside #game-action-form on 'submit' callback");
 
         turn_off_game_actions();
 
         var move_id = 'game-' + game_id + '-move-' + move_num;
-        add_hidden_input('#board-form', 'hidden-turn-data', 'move_id', move_id);
-        socket.emit('submitted-game-action', { move_id: move_id });
+        add_hidden_input('#game-action-form', 'hidden-turn-data', 'move_id', move_id);
+        socket.emit('submitted-game-action', { move_id: move_id, from: 'websocket' });
 
-        console.log('--- form serialize --- ' + $('#board-form').serialize());
+        console.log('--- form serialize --- ' + $('#game-action-form').serialize());
         return true;
     });
 
@@ -32,16 +33,16 @@ function add_move_handler() {
         console.log('Inside click.new_move handler for tile pos: ' + tile_pos);
 
         var move_id = 'game-' + game_id + '-move-' + move_num;
-        add_hidden_input('#board-form', 'hidden-turn-data', 'new_move', tile_pos);
-        add_hidden_input('#board-form', 'hidden-turn-data', 'move_id', move_id);
+        add_hidden_input('#game-action-form', 'hidden-turn-data', 'new_move', tile_pos);
+        add_hidden_input('#game-action-form', 'hidden-turn-data', 'move_id', move_id);
 
         console.log('submitting form via jquery/ajax');
 
         turn_off_game_actions();
 
-        console.log('--- form serialize --- ' + $('#board-form').serialize());
-        $.post($('#board-form').attr('action'), $('#board-form').serialize(), on_success, 'script');
-        socket.emit('submitted-game-action', { move_id: move_id });
+        console.log('--- form serialize --- ' + $('#game-action-form').serialize());
+        $.post($('#game-action-form').attr('action'), $('#game-action-form').serialize(), on_success, 'script');
+        socket.emit('submitted-game-action', { move_id: move_id, from: 'websocket' });
     });
 }
 
@@ -70,17 +71,17 @@ function turn_off_game_actions() {
     $('div.tile_container.clickable').removeClass('clickable');
     $('div.tile_container').off('click.new_move');
 
-    $('#board-form .button').prop('disabled', true);
+    $('#game-action-form .button').prop('disabled', true);
 }
 
 function enable_game_action_buttons() {
-    $('#board-form .button').prop('disabled', false);
+    $('#game-action-form .button').prop('disabled', false);
 }
 
 function get_socket() {
     console.log('-- sockjs_url: ' + sockjs_url + '\n');
 
-    var sockjs = new SockjsClient(sockjs_url);
+    var sockjs = new SockjsClient(sockjs_url, { verbose: true });
 
     sockjs.on('connect', function() {
         console.log("sockjs successfully connected with protocol '" + sockjs.protocol + "'");
@@ -92,17 +93,44 @@ function get_socket() {
     });
 
     sockjs.on('message', function(data) {
-        console.log("    inside sockjs.on('message', cb) callback, data= " + JSON.stringify(data));
+        console.log("inside sockjs.on('message', cb) callback, data= " + JSON.stringify(data));
     });
 
-    sockjs.on('game-updates', function(data) {
-        console.log("    inside sockjs.on('game-updates', cb) callback, data= " + JSON.stringify(data));
+    sockjs.on('game-update', function(data) {
+        console.log("inside sockjs.on('game-update', cb) callback, data= " + JSON.stringify(data));
 
         update_game(data.tiles, data.invalid_moves, data.header_html);
-        sockjs.emit('received-game-update', { move_id: data.move_id });
+        if (data.disable_undo_button) $('#undo-button').prop('disabled', true);
+        sockjs.emit('received-game-update', { event_id: data.event_id });
+    });
+
+    sockjs.on('undo-request', function(data) {
+        console.log("inside sockjs.on('undo-request', cb) callback, data= " + JSON.stringify(data));
+        socket.emit('received-undo-request', { request_id: data.event_id });
+
+        if (!modal.currentlyDisplayed) {
+            modal.open({ content: data.undo_approval_form });
+
+            $(modal.contentId + " #yes-button").on('click.undo-approval', function(e) {
+                e.preventDefault();
+                submit_undo_request('approved');
+            });
+            $(modal.contentId + " #no-button").on('click.undo-approval', function(e) {
+                e.preventDefault();
+                submit_undo_request('rejected');
+            });
+        }
     });
 
     return sockjs;
+}
+
+function submit_undo_request(approval_status) {
+    console.log("submitting undo approval form -- approval_status: " + approval_status);
+    $('#undo-status').val(approval_status);
+
+    $.post($('#undo-approval-form').attr('action'), $('#undo-approval-form').serialize(), on_success, 'script');
+    modal.close();
 }
 
 function on_success(data, textStatus, jqXHR) {

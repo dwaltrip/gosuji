@@ -1,0 +1,18 @@
+<div class='form-container'>
+
+<div class='popup-message'>
+  Your opponenet
+  <span class='notice-highlight'><%= current_user.username %></span>
+  has requested an undo for their most recent move.<br>
+  Do you want to allow the undo?
+</div>
+
+<%= form_tag({ action: :update }, { id: 'undo-approval-form' }) do %>
+  <%= submit_tag 'Yes', name: :undo_approved, id: 'yes-button', class: 'button' %>
+  <%= submit_tag 'No', name: :undo_rejected, id: 'no-button', class: 'button' %>
+
+  <%= hidden_field_tag :undo, 'rejected', id: 'undo-status' %>
+  <%= hidden_field_tag :request_id, request_id %>
+<% end %>
+
+</div>
