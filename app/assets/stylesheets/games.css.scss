@@ -54,7 +54,7 @@ div.tile_container.clickable {
 
 div#header_container {
     text-align: center;
-    margin: 10px 0 10px 0;
+    margin: 10px 0 5px 0;
     background-color: #dce9f9;
 
     -moz-border-radius: 6px;
@@ -65,7 +65,26 @@ div#header_container {
 
 #game-actions-container {
     text-align: center;
-    height: 30px;
+    display: block;
+    height: 26px;
+    margin: 5px 0 5px 0;
+}
+
+#game-actions-container form {
+    display: inline;
+}
+
+.form-container {
+    text-align: center;
+}
+
+.notice-highlight {
+    color: #228B22;
+    font-weight: 900;
+}
+
+.popup-message {
+    margin-bottom: 10px;
 }
 
 

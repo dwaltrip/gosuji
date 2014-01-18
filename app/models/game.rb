@@ -204,6 +204,28 @@ class Game < ActiveRecord::Base
     end
   end
 
+  def undo(undoing_player)
+    if [ACTIVE, END_GAME_SCORING].include?(self.status) && self.played_a_move(undoing_player)
+      prev_board = self.active_board
+      prev_invalid_moves = self.get_rulebook.invalid_moves
+
+      # destroy 1 board
+      if undoing_player == self.inactive_player
+        self.active_board.destroy
+      # destroy 2 boards
+      elsif undoing_player == self.active_player
+        self.boards.to_a[-2..-1].each { |board| board.destroy }
+      end
+
+      new_rulebook = self.get_rulebook(force_rebuild=true)
+      new_rulebook.calculate_undo_updates(prev_board, prev_invalid_moves, self.active_board.pos)
+
+      true
+    else
+      false
+    end
+  end
+
   def create_next_board(new_move_pos)
     next_board = self.active_board.replicate_and_update(
       new_move_pos,
@@ -279,6 +301,10 @@ class Game < ActiveRecord::Base
     end
 
     @rulebook
+  end
+
+  def played_a_move(player)
+    (player_color(player) && ((move_num >= 2) || (move_num == 1 && player == inactive_player)))
   end
 
   def boards_by_color(last_only = false)

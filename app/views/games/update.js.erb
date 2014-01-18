@@ -6,11 +6,22 @@
 
   $('#header_container').html('<%= j render('game_stats', { game: @game }) %>');
 
-  <% if @tiles %>
-    <% @tiles.each do |pos, tile| %>
-      var new_tile = $('<%= j render('tile', tile: tile) %>').find('.tile_container');
-      $('<%= "#tile-#{pos}" %>').html(new_tile[0].outerHTML);
+  <% if @render_updates %>
+    <% if @tiles %>
+      <% @tiles.each do |pos, tile| %>
+        var new_tile = $('<%= j render('tile', tile: tile) %>').find('.tile_container');
+        $('<%= "#tile-#{pos}" %>').html(new_tile[0].outerHTML);
+      <% end %>
     <% end %>
+
+    <% if [1, 2].include?(@game.move_num) && @game.played_a_move(current_user) %>
+      $('#undo-button').prop('disabled', false);
+    <% end %>
+  <% end %>
+
+  <% if @undo_performed %>
+    turn_off_game_actions();
+    socket.emit('undo-performed', { event_id: '<%= @event_id %>', from: 'websocket' });
   <% end %>
 
   window.move_num = <%= @game.move_num + 1 %>;

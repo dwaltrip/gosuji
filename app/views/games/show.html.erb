@@ -7,15 +7,21 @@
   </div>
 
   <div id='board_container'>
-    <%= form_tag({ action: :update }, { id: 'board-form' , remote: true }) do %>
-      <div id='game-actions-container'>
-        <%= submit_tag 'Pass', name: 'pass', class: 'button', disabled: current_user != @game.active_player %>
-      </div>
+    <div id='game-actions-container'>
 
-      <table class='board-table'>
-        <%= render partial: 'games/tile', collection: @tiles %>
-      </table>
-    <% end %>
+      <%= form_tag({ action: :update }, { id: 'game-action-form', remote: true }) do %>
+        <%= submit_tag 'Done', name: 'done-scoring', class: 'button' if @game.end_game_scoring? %>
+        <%= submit_tag 'Pass', name: 'pass', class: 'button', disabled: current_user != @game.active_player %>
+      <% end %>
+
+      <%= form_tag({ action: :request_undo }, { id: 'request-undo-form', remote: true }) do %>
+        <%= submit_tag 'Undo', class: 'button', id: 'undo-button', disabled: !@game.played_a_move(current_user) %>
+      <% end %>
+    </div>
+
+    <table class='board-table'>
+      <%= render partial: 'games/tile', collection: @tiles %>
+    </table>
   </div>
 
 </div>
@@ -25,4 +31,4 @@
   window.move_num = <%= @game.move_num + 1 %>;
 <% end %>
 
-<% javascript 'games.js', 'event_emitter.js', 'sockjs_client', 'sockjs-0.3.min.js' %>
+<% javascript 'modal.js', 'games.js', 'event_emitter.js', 'sockjs_client', 'sockjs-0.3.min.js' %>

@@ -13,6 +13,7 @@ GoApp::Application.routes.draw do
   resources :games do
     member do
       get :join
+      post :request_undo
     end
   end
 
