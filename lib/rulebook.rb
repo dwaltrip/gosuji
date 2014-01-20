@@ -20,9 +20,18 @@ module Rulebook
       Rails.logger.info "-- Rulebook.initialize -- done"
     end
 
-    # TODO: implement this!
     def playable?(move_pos, player_color)
-      true
+      unless move_pos.between?(0, (@size ** 2) - 1)
+        false
+      else
+        if TILE_VALUES.values.include? @board[move_pos]
+          false
+        elsif @board[move_pos] == EMPTY && (invalid_moves[player_color].include? move_pos)
+          false
+        else
+          true
+        end
+      end
     end
 
     def play_move(move_pos, player_color)

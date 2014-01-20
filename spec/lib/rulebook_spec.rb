@@ -545,5 +545,59 @@ describe Rulebook do
     end
   end
 
+  describe ".playable?" do
+    rulebook = build_rulebook([
+      '|_|b|_|b|_|',
+      '|_|b|b|b|b|',
+      '|w|w|w|_|_|',
+      '|_|b|w|_|_|',
+      '|b|b|w|_|_|'
+    ])
+
+    Move = Struct.new(:pos, :color)
+    invalid_moves = [Move.new(2, :white), Move.new(4,:white), Move.new(15, :black)]
+    invalid_positions = {}
+    invalid_moves.each { |move_data| invalid_positions[move_data.pos] = move_data }
+
+    it "returns true for valid blank tiles and false for existing stones" do
+      rulebook.board.each_with_index do |tile_state, pos|
+        [:black, :white].each do |color|
+          if tile_state == GoApp::EMPTY_TILE
+            unless invalid_positions.keys.include?(pos) && invalid_positions[pos].color == color
+              msg = "expected pos #{pos} by #{color.inspect} to be playable"
+              expect(rulebook.playable?(pos, color)).to be_true, msg
+            end
+          elsif [BLACK, WHITE].include? tile_state
+            msg = "expected pos #{pos} by #{color.inspect} to be NOT playable. tile state: #{tile_state.inspect}"
+            expect(rulebook.playable?(pos, color)).to be_false, msg
+          else
+            expect(1).to eq(2) # this shouldn't happen
+          end
+        end
+
+      end
+    end
+
+    it "only returns true if the new move is not an invalid move" do
+      invalid_moves.each do |move_data|
+        expect(rulebook.playable?(move_data.pos, move_data.color)).to be_false
+      end
+    end
+
+    it "only returns true if new move is within board size range" do
+      [:black, :white].each do |color|
+        [-1, 25, 100].each do |out_of_range_pos|
+          expect(rulebook.playable?(out_of_range_pos, color)).to be_false
+        end
+      end
+
+      [:black, :white].each do |color|
+        [0, 24].each do |in_range_pos|
+          expect(rulebook.playable?(in_range_pos, color)).to be_true
+        end
+      end
+    end
+  end
+
 end
 

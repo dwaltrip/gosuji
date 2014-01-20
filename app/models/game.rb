@@ -185,6 +185,7 @@ class Game < ActiveRecord::Base
     if self.active? && current_player == self.active_player
       if self.active_board.pass
         self.status = END_GAME_SCORING
+        save
       end
 
       rulebook = self.get_rulebook
