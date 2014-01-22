@@ -1,12 +1,6 @@
 require 'spec_helper'
 
-require 'rspec/expectations'
-RSpec::Matchers.define :have_image do |img_src, options|
-  options = options || {}
-  match { |node| node.has_selector? "img[src*=#{img_src}]", options }
-end
-
-
+# these specs need to be run with Node.js app also running
 feature "gameplay actions" do
 
   scenario "players play several basic moves back and forth" do
@@ -23,11 +17,11 @@ feature "gameplay actions" do
 
     # ensure both players have blank game boards to start
     in_browsers(players) do |player|
-      expect(page).to have_image("blank_tiles", count: size**2)
-      expect(page).not_to have_image("stone")
+      expect(page).to have_blank_tile(count: size**2)
+      expect(page).not_to have_stone
     end
 
-    # black plays a move first, and first item in players Cycle is black player
+    # alternate between black and white player, playing a move, and assert browser displays board properly
     players.cycle(tiles.length) do |current_player, counter|
       color = game.player_color(current_player)
       move_num = counter + 1
@@ -35,37 +29,27 @@ feature "gameplay actions" do
       tile = tiles[counter]
 
       # current player plays next move
-      in_browser(current_player) do
-        page.find(tile).click
+      in_browser(current_player) { find(tile).click }
 
-        # consider removing this and trying without custom 'have_image' matcher
-        sleep(1) # not the most elegant, but works well and don't have time to keep digging
-      end
-
-      # then both should see the updated board
+      # expect both players to see the updated board
       in_browsers(players) do
+
         # loop through old moves and verify they are being displayed properly
         Cycle.new([:black, :white]).cycle(counter) do |prev_color, inner_counter|
           prev_tile = tiles[inner_counter]
-
-          expect(page.find(prev_tile)).to have_image("#{prev_color}_stone")
-          expect(page.find(prev_tile)).not_to have_image("highlighted")
+          expect(find(prev_tile)).to have_stone(color: prev_color, highlighted: false)
         end
 
-        expect(page.find(tile)).to have_image("#{color}_stone_highlighted")
-        expect(page).to have_image("#{color}_stone_highlighted", count: 1)
-        expect(page).to have_image("#{color}_stone", count: stone_counts[color])
-
-        expect(page).to have_image("stone", count: move_num)
-        expect(page).to have_image("blank_tiles", count: size**2 - move_num)
-
+        expect(find(tile)).to have_stone(color: color, highlighted: true)
+        expect(page).to have_stone(color: color, count: stone_counts[color])
+        expect(page).to have_stone(highlighted: false, count: move_num - 1)
+        expect(page).to have_blank_tile(count: size**2 - move_num)
         expect(page).to have_content("Move #{counter + 1}")
       end
     end
   end
 
 
-  # this scenario has to be run with local NodeJS app also running
   scenario "player passes their turn" do
     size = GoApp::MIN_BOARD_SIZE
     players, game = setup_game_and_sessions(board_size: size)
@@ -83,6 +67,7 @@ feature "gameplay actions" do
     end
   end
 
+
   scenario "player plays move, then requests undo, and other player grants the undo" do
     size = GoApp::MIN_BOARD_SIZE
     players, game = setup_game_and_sessions(board_size: size)
@@ -97,42 +82,36 @@ feature "gameplay actions" do
     # undo should be disabled before a player makes their first move, and then enabled
     in_browsers(players) do |player|
       expect(page).not_to have_button("Undo")
-      page.find(tiles[player.id]).click
+      find(tiles[player.id]).click
       expect(page).to have_button("Undo")
     end
-    #sleep(1)
 
     # second player requests undo
     in_browser(second_player) do
-      page.find_button('Undo').click
+      click_button "Undo"
     end
 
     # first player should see popup allowing approve/deny the request for undo
     in_browser(first_player) do
       expect(page).to have_content("has requested an undo")
-      expect(page.find("#undo-approval-form")).to have_button("Yes")
-      expect(page.find("#undo-approval-form")).to have_button("No")
+      expect(find("#undo-approval-form")).to have_button("Yes")
+      expect(find("#undo-approval-form")).to have_button("No")
 
       # approve the undo request
-      within "#undo-approval-form" do
-        click_button "Yes"
-      end
+      find("#undo-approval-form").click_button "Yes"
     end
-    sleep(1)
 
     # both players should now see the updated board with the most recent move reverted
     in_browsers(players) do |player|
-      expect(page.find(first_tile)).to have_image("#{game.player_color(first_player)}_stone_highlighted")
-      expect(page.find(tile_to_undo)).to have_image("blank_tiles")
+      expect(find(first_tile)).to have_stone(color: game.player_color(first_player), highlighted: true)
+      expect(find(tile_to_undo)).to have_blank_tile
 
-      expect(page).to have_image("stone", count: 1)
-      expect(page).to have_image("blank_tiles", count: size**2 - 1)
-
-      # check game status message
+      expect(page).to have_stone(count: 1)
+      expect(page).to have_blank_tile(count: size**2 - 1)
       expect(page).to have_content("Move 1")
     end
 
-    # undo should not be possible again, as the only move made by this player was undone already
+    # undo should not be possible once again, as the only move made by this player was undone already
     in_browser(second_player) do
       expect(page).not_to have_button("Undo")
     end
@@ -141,6 +120,37 @@ feature "gameplay actions" do
 end
 
 
+# helper methods to be used as natural rspec matchers, by returning calls to the macther have_selector
+# this gives more useful failure messages, better use of capybara's synching/waiting abilities
+def have_blank_tile(options={})
+  options[:css_class] = ".board_tile"
+  have_image("blank_tile", options)
+end
+
+def have_stone(options={})
+  highlighted = options.delete(:highlighted)
+  img_src_chunks = [options.delete(:color), "stone", ("highlighted" if highlighted)]
+  img_src = img_src_chunks.delete_if { |chunk| chunk.nil? }.join("_")
+
+  if (highlighted == false)
+    img_src << ".png"
+    options[:ends_with] = true
+  end
+  options[:css_class] = ".board_tile"
+
+  have_image(img_src, options)
+end
+
+def have_image(img_src, options={})
+  css_class = options.delete(:css_class).to_s
+  attr_matcher_type = ("^" if options.delete(:starts_with)) || ("$" if options.delete(:ends_with)) || "*"
+  selector = "img[src#{attr_matcher_type}='#{img_src}']#{css_class}"
+
+  have_selector(selector, options)
+end
+
+
+# create game, load game in browser for both players, and make sure websockets are working
 def setup_game_and_sessions(options)
   players = Cycle.new([
     create(:user, username: 'player1'),
@@ -187,6 +197,16 @@ end
 def in_browser(player)
   Capybara.session_name = player.username
   yield
+end
+
+
+# useful for debugging
+def save_page_html(current_page, suffix=nil)
+  time_str = Time.now.strftime('%Y-%m-%d-%H-%M-%S-%L')
+
+  File.open("#{Rails.root}/log/tmp/capybara/#{time_str}#{suffix.to_s}.html", "w") do |file|
+    file.write(current_page.html)
+  end
 end
 
 
