@@ -1,7 +1,4 @@
 class ApplicationController < ActionController::Base
-  around_filter :global_request_logging if Rails.env.development?
-  #after_filter :catch_js_response_errors
-
   # Prevent CSRF attacks by raising an exception.
   # For APIs, you may want to use :null_session instead.
   protect_from_forgery with: :exception
@@ -28,48 +25,6 @@ class ApplicationController < ActionController::Base
     unless current_user
       session[:login_redirect_url] = request.original_url
       redirect_to log_in_url, notice: "Please log in to perform this action."
-    end
-  end
-
-  def catch_js_response_errors
-    logger.info "-- after_filter: catch_js_response_errors -- response.content_type: #{response.content_type}"
-
-    if response.content_type == 'text/javascript'
-      literal_js = (response.body.strip.inspect)[1..-2]
-      response.body = "try { eval(\"#{literal_js}\"); }\ncatch (e) { console.log(e); }"
-    end
-  end
-
-  def global_request_logging
-    verbose = false
-
-    http_request_headers = {}
-    if verbose
-      logger.info "** Received #{request.method.inspect} to #{request.url.inspect} from #{request.remote_ip.inspect}"
-      logger.info "** Processing with headers:"
-
-      request.headers.each do |header_name, header_value|
-        if header_name.match("^HTTP.*")
-          http_request_headers[header_name] = header_value
-          logger.info "-- #{header_name.inspect} => #{header_value.inspect}"
-        end
-      end
-
-      logger.info "** Params:"
-      params.each do |param_name, value|
-        logger.info "**-- #{param_name.inspect} => #{value.inspect}"
-      end
-    else
-      user_agent_hash = Digest::MD5.hexdigest(request.headers["HTTP_USER_AGENT"])
-      logger.info "**** hash of USER_AGENT (unique identifier) = #{user_agent_hash.inspect}"
-    end
-
-    begin
-      yield
-    ensure
-      if verbose
-        logger.info "**** Responding with #{response.status.inspect} => #{response.body.inspect}"
-      end
     end
   end
 
