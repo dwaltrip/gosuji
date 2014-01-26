@@ -12,7 +12,7 @@
 /db/*.sqlite3-journal
 
 # Ignore all logfiles and tempfiles.
-/log/*.log
+/log/*
 /tmp
 
 # ignore for security, database settings should not be shared
@@ -27,8 +27,8 @@ doc/
 .idea
 .secret
 
-# Ignore zz-testing-random directory
-/zzz-misc-random
+# Ignore misc directory
+/misc
 
 # Ignore application configuration
 /config/application.yml
