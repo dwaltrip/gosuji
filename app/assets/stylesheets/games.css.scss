@@ -43,7 +43,8 @@ img.preview_stone {
     display: none;
 }
 
-.tile_container:hover > img.preview_stone {
+//.tile_container:hover > img.preview_stone {
+.tile_container:hover img.preview_stone {
     display: block;
 }
 
@@ -74,7 +75,7 @@ div#header_container {
     display: inline;
 }
 
-.form-container {
+#undo-approval-container {
     text-align: center;
 }
 

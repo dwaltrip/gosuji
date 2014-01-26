@@ -34,6 +34,8 @@ class Board < ActiveRecord::Base
     Array.new(self.game.board_size**2) { |n| state(n) }
   end
 
+  # this should be implemented better. we should have smart defaults for attributes,
+  # and only change releveant ones
   def replicate_and_update(pos, captured_count, color)
     new_board = self.dup
     new_board.game = self.game
@@ -42,6 +44,7 @@ class Board < ActiveRecord::Base
     new_board.add_stone(pos, color)
     new_board.captured_stones = captured_count
     new_board.ko = nil
+    new_board.pass = false
 
     new_board
   end
@@ -133,6 +136,19 @@ class Board < ActiveRecord::Base
       end
     end
     a
+  end
+
+  def inspect
+    regexp = /\Apos_[\d]+\Z/ # don't print out the 361 attributes storing tile state
+    inspections =
+      if @attributes
+        self.class.column_names.collect do |name|
+          "#{name}: #{attribute_for_inspect(name)}" if (has_attribute?(name) && (name !~ regexp))
+        end
+      else
+        ["not initialized"]
+      end
+    "#<#{self.class} #{inspections.compact.join(", ")}>"
   end
 
 end

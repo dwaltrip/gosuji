@@ -6,7 +6,7 @@ class Game < ActiveRecord::Base
 
   validates :description, length: { maximum: 40 }
 
-  after_touch :clear_association_cache
+  after_touch :clear_association_cache_wrapper
 
   # game.status constants
   OPEN = 0
@@ -102,30 +102,11 @@ class Game < ActiveRecord::Base
   end
 
   def white_capture_count
-    @status_details ||= status_details
-    @status_details[:captures][:white]
+    self.captured_count(:white)
   end
 
   def black_capture_count
-    @status_details ||= status_details
-    @status_details[:captures][:black]
-  end
-
-  def status_details
-    black_board, white_board = self.boards_by_color(last_only = true)
-
-    details = {}
-    details[:captures] = {
-      black: black_board ? (black_board.captured_stones || 0) : 0,
-      white: white_board ? (white_board.captured_stones || 0) : 0
-    }
-    if self.time_settings && self.time_settings.length > 0
-      details[:time_left] = {
-        black: black_board ? black_board.time_left : nil,
-        white: white_board ? white_board.time_left : nil
-      }
-    end
-    details
+    self.captured_count(:black)
   end
 
   def opponent(user)
@@ -167,10 +148,13 @@ class Game < ActiveRecord::Base
     rulebook = self.get_rulebook
     color = self.player_color(current_player)
 
+    msg = "active?: #{self.active?}, active_player: #{self.active_player}"
+    msg << ", rb.invalid_moves: #{rulebook.invalid_moves}, rb.playable?: #{rulebook.playable?(new_move_pos, color)}"
+    logger.info "-- game.new_move -- #{msg}"
     if self.active? && current_player == self.active_player && rulebook.playable?(new_move_pos, color)
       rulebook.play_move(new_move_pos, color)
 
-      self.create_next_board(new_move_pos)
+      self.create_next_board(new_move_pos, color)
 
       logger.info "-- Game.new_move -- rulebook.captured_stones: #{rulebook.captured_stones.inspect}"
       logger.info "-- Game.new_move -- rulebook.invalid_moves: #{rulebook.invalid_moves.inspect}"
@@ -197,6 +181,7 @@ class Game < ActiveRecord::Base
       new_board.ko = nil
       new_board.pos = nil
       new_board.pass = true
+      new_board.captured_stones = self.captured_count(self.player_color(current_player))
       new_board.save
 
       true
@@ -227,10 +212,10 @@ class Game < ActiveRecord::Base
     end
   end
 
-  def create_next_board(new_move_pos)
+  def create_next_board(new_move_pos, color)
     next_board = self.active_board.replicate_and_update(
       new_move_pos,
-      self.previous_captured_count,
+      self.captured_count(color),
       self.player_color(self.active_player)
     )
     next_board.remove_stones(self.get_rulebook.captured_stones)
@@ -270,23 +255,13 @@ class Game < ActiveRecord::Base
     self.status == END_GAME_SCORING
   end
 
-  def previous_captured_count
-    color = self.player_color(self.active_player)
-    last_black_board, last_white_board = boards_by_color(last_only = true)
+  def captured_count(color)
+    last_boards = boards_by_color(last_only = true)
 
-    if color == :black
-      board = last_black_board
-    elsif color == :white
-      board = last_white_board
-    end
-
-    if board
-      log_msg = "color= #{color.inspect}, move_num= #{board.move_num.inspect}, pos= #{board.pos.inspect}"
-      log_msg << ", captured_stones= #{board.captured_stones.inspect}"
-      logger.info "-- Game.previous_captured_count: #{log_msg}"
-      board.captured_stones
+    unless last_boards[color].nil?
+      last_boards[color].captured_stones
     else
-      logger.info "-- Game.previous_captured_count: no previous board for #{color}"
+      logger.info "-- Game.captured_count: no previous board for #{color.inspect}"
       0
     end
   end
@@ -309,26 +284,39 @@ class Game < ActiveRecord::Base
   end
 
   def boards_by_color(last_only = false)
+    boards_hash = {}
     if boards.length == 0
-      return
+      return nil
     elsif last_only
       b1, b2 = boards[-1], boards[-2]
       if self.player_color(self.player_at_move(b1.move_num)) == :black
-        black_board, white_board = b1, b2
+        boards_hash[:black], boards_hash[:white] = b1, b2
       else
-        black_board, white_board = b2, b1
+        boards_hash[:black], boards_hash[:white] = b2, b1
       end
-      [black_board, white_board]
     else
-      black_boards, white_boards = [], []
+      boards_hash[:black], boards_hash[:white] = [], []
       boards.each do |b|
         if b.move_num > 0
-          black_boards << b if self.player_color(self.player_at_move(b.move_num)) == :black
-          white_boards << b if self.player_color(self.player_at_move(b.move_num)) == :white
+          boards_hash[:white] << b if self.player_color(self.player_at_move(b.move_num)) == :black
+          boards_hash[:white] << b if self.player_color(self.player_at_move(b.move_num)) == :white
         end
       end
-      [black_boards, white_boards]
     end
+    boards_hash
+  end
+
+  private
+
+  def clear_association_cache_wrapper
+    msg = "(boards[-1].id: %d, boards.length: %d)"
+    before_msg = msg % [boards[-1].id, boards.to_a.length]
+
+    clear_association_cache
+
+    after_msg = msg % [boards[-1].id, boards.to_a.length]
+    logger.info "-- clear_association_cache_wrapper -- id: #{self.id}, object_id: #{self.object_id}"
+    logger.info "-- -- before: #{before_msg} -- after: #{after_msg}"
   end
 
 end

@@ -109,6 +109,46 @@ describe Game do
     end
   end
 
+
+  describe ".white_capture_count, .black_capture_count" do
+    it "capture counts are properly stored across moves" do
+      # |_|w|_|_|*|
+      # |w|b|*|_|_|
+      # |_|w|_|b|_|
+      # |_|_|b|w|*|
+      # |*|_|_|b|_|
+      size = 5
+      stones_to_kill = { black: size + 1, white: (size * (size - 1)) - 2 }
+      game = game_with_stones_to_capture(size, stones_to_kill, killing_move: :right_side)
+      black_player, white_player = game.black_player, game.white_player
+
+      # no captures yet
+      expect(game.captured_count(:white)).to eq(0)
+      expect(game.captured_count(:black)).to eq(0)
+
+      # black goes first in regular games
+      # killing moves are to the right of the doomed stones (hence the pos + 1)
+      game.new_move(stones_to_kill[:white] + 1, black_player)
+      expect(game.white_capture_count).to eq(0)
+      expect(game.black_capture_count).to eq(1)
+
+      game.new_move(stones_to_kill[:black] + 1, white_player)
+      expect(game.white_capture_count).to eq(1)
+      expect(game.black_capture_count).to eq(1)
+
+      # play some other boring moves, and verify capture stone counts are still correct
+      game.new_move(size * (size - 1), black_player) # out of the way in bottom most left corner
+      expect(game.white_capture_count).to eq(1)
+      expect(game.black_capture_count).to eq(1)
+
+      game.new_move(size - 1, white_player) # out of the way in the top most right corner
+      expect(game.white_capture_count).to eq(1)
+      expect(game.black_capture_count).to eq(1)
+      # bada bing, bada boom!
+    end
+  end
+
+
   describe ".pass" do
     it "creates another board with identical state to the previous board" do
       size = 5
@@ -194,9 +234,39 @@ describe Game do
       expect(game.pass(other_user)).to be_false
       expect(game.boards[-1].id).to eq(prev_board.id)
     end
+
+    it "preserves correct captured stone count" do
+      # |_|w|_|_|_|
+      # |w|b|*|_|_|
+      # |_|w|_|b|_|
+      # |_|_|b|w|*|
+      # |_|_|_|b|_|
+      size = 5
+      # black: 1 diagonal tile away from top left corner. white: 1 diagonal away from bottom rigtht corner
+      stones_to_kill = { black: size + 1, white: (size * (size - 1)) - 2 }
+      game = game_with_stones_to_capture(size, stones_to_kill, killing_move: :right_side)
+      black_player, white_player = game.black_player, game.white_player
+
+      # killing move on right side --> position of doomed stone + 1
+      # black captures a stone, white passes, then we verify capture counts
+      game.new_move(stones_to_kill[:white] + 1, black_player)
+      game.pass(white_player)
+      expect(game.white_capture_count).to eq(0)
+      expect(game.black_capture_count).to eq(1)
+
+      # irrelevant, no impact move (bottom left corner) by black to maintain the ordering of turns
+      game.new_move(size * (size - 1), black_player)
+
+      # white captures a stone, black passes, then we verify capture counts
+      game.new_move(stones_to_kill[:black] + 1, white_player)
+      game.pass(black_player)
+      expect(game.white_capture_count).to eq(1)
+      expect(game.black_capture_count).to eq(1)
+    end
   end
 
-  describe ".undo" do
+
+  describe ".undo"  do
     def setup_for_undo
       game = create(:new_active_game)
       Board.initial_board(game)
@@ -271,6 +341,36 @@ describe Game do
         expect(prev_boards[-1]).to be_persisted
       end
     end
+
+    #it "it returns game to 'ACTIVE' status if current status is 'END_GAME_SCORING'"
+
+    it "preserves correct captured stone count" do
+      # |_|w|_|_|_|
+      # |w|b|*|_|_|
+      # |_|w|_|b|_|
+      # |_|_|b|w|*|
+      # |_|_|_|b|_|
+      size = 5
+      # black: 1 diagonal tile away from top left corner. white: 1 diagonal away from bottom rigtht corner
+      stones_to_kill = { black: size + 1, white: (size * (size - 1)) - 2 }
+      game = game_with_stones_to_capture(size, stones_to_kill, killing_move: :right_side)
+      black_player, white_player = game.black_player, game.white_player
+
+      # killing move on right side --> position of doomed stone + 1
+      game.new_move(stones_to_kill[:white] + 1, black_player)
+      game.new_move(stones_to_kill[:black] + 1, white_player)
+
+      expect(game.white_capture_count).to eq(1)
+      expect(game.black_capture_count).to eq(1)
+
+      game.undo(white_player)
+      expect(game.white_capture_count).to eq(0)
+      expect(game.black_capture_count).to eq(1)
+
+      game.undo(black_player)
+      expect(game.white_capture_count).to eq(0)
+      expect(game.black_capture_count).to eq(0)
+    end
   end
 
 end
@@ -289,4 +389,31 @@ def play_some_moves(game)
       i += 1
     end
   end
+end
+
+def game_with_stones_to_capture(size, stones_to_kill, options={})
+  sides = { top_side: -size, bottom_side: size, right_side: 1, left_side: -1 }
+  game = create(:new_active_game, board_size: size)
+  Board.initial_board(game)
+
+  opponent = { black: :white, white: :black }
+  surrounding_tiles = {}
+  # surround each stone_to_kill on left, top, and bottom sides, so that we can kill in one move (right side)
+  stones_to_kill.each do |color, pos|
+    # opponent hash is used because each color is surrounding the doomed stone of the opposite color
+    surrounding_tiles[opponent[color]] = []
+    sides.each do |side, delta|
+      surrounding_tiles[opponent[color]] << (pos + delta) unless options[:killing_move] == side
+    end
+  end
+
+  board = game.boards[-1]
+  # mark board with initial stones (artificial setup, will look like comment pictorial above, minus asterisks)
+  [:black, :white].each do |color|
+    board.add_stone(stones_to_kill[color], color)
+    surrounding_tiles[color].each { |pos| board.add_stone(pos, color) }
+  end
+  board.save
+
+  game
 end

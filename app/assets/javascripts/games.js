@@ -81,7 +81,7 @@ function enable_game_action_buttons() {
 function get_socket() {
     console.log('-- sockjs_url: ' + sockjs_url + '\n');
 
-    var sockjs = new SockjsClient(sockjs_url, { verbose: true });
+    var sockjs = new SockjsClient(sockjs_url);
 
     sockjs.on('connect', function() {
         console.log("sockjs successfully connected with protocol '" + sockjs.protocol + "'");

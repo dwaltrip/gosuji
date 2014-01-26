@@ -21,7 +21,7 @@ module Rulebook
     end
 
     def playable?(move_pos, player_color)
-      unless move_pos.between?(0, (@size ** 2) - 1)
+      if (not move_pos.between?(0, (@size ** 2) - 1)) || player_color.nil?
         false
       else
         if TILE_VALUES.values.include? @board[move_pos]
@@ -104,6 +104,9 @@ module Rulebook
     end
 
     def calculate_undo_updates(prev_board, prev_invalid_moves, new_last_move_played)
+      log_msg = "prev_invalid_moves: #{prev_invalid_moves.inspect}"
+      log_msg << ", new_last_move_played: #{new_last_move_played.inspect}"
+      Rails.logger.info "-- Rulebook.calculate_undo_updates -- #{log_msg}"
       board_state_differences = Set.new
 
       @board.each_with_index do |tile_state, pos|

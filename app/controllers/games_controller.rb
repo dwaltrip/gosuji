@@ -39,12 +39,12 @@ class GamesController < ApplicationController
   end
 
   def show
-    logger.info "-- games#show -- #{formatted_game_info(@game)}"
+    pretty_log_game_info("-- games#show -- ")
     render_game_helper
   end
 
   def update
-    logger.info "-- games#update -- #{formatted_game_info(@game)}"
+    pretty_log_game_info("-- games#update, before -- ")
     @invalid_request = true
 
     if params.key?(:new_move)
@@ -106,6 +106,7 @@ class GamesController < ApplicationController
       $redis.publish "game-events", ActiveSupport::JSON.encode(update_data)
     end
 
+    pretty_log_game_info("-- games#update, after -- ")
     respond_to do |format|
       format.html { render "show" }
       format.js
@@ -191,12 +192,12 @@ class GamesController < ApplicationController
     session[:request_count] = 0
   end
 
-  def formatted_game_info(game)
-    b = game.active_board
-    info_string = "id= #{game.id}, w= #{game.white_player.username}, b= #{game.black_player.username}"
-    info_string << ", size= #{game.board_size}, move_num= #{b.move_num.inspect}, pos= #{b.pos.inspect}"
-    info_string << ", played by= #{game.player_at_move(b.move_num).username}"
-    info_string
+  def pretty_log_game_info(prefix)
+    inspect_prefix = @game.inspect.split[0] # use this to insert game.object_id into the game.inspect output
+    log_msg1 = "game: #{inspect_prefix} object_id: #{@game.object_id},#{@game.inspect[(inspect_prefix.length)..-1]}"
+    log_msg2 = "game.active_board: #{@game.active_board.inspect}"
+    logger.info "#{prefix}#{log_msg1}"
+    logger.info "#{prefix}#{log_msg2}"
   end
 
 end
