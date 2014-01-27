@@ -1,7 +1,6 @@
 class GamesController < ApplicationController
   before_filter :require_login, :except => :index
   before_action :find_game, only: [:show, :join, :update, :request_undo]
-  after_action :undo_request_cleanup, only: [:show, :update]
 
   def index
     @open_games = Game.open.order('created_at DESC')
@@ -40,25 +39,24 @@ class GamesController < ApplicationController
 
   def show
     pretty_log_game_info("-- games#show -- ")
+    @connection_id = generate_token
     render_game_helper
   end
 
   def update
     pretty_log_game_info("-- games#update, before -- ")
-    @invalid_request = true
+    @valid_request = false
 
     if params.key?(:new_move)
       if @game.new_move(params[:new_move].to_i, current_user)
         @just_played_move = true
-        @invalid_request = false
-        @event_id = params[:move_id]
+        @valid_request = true
       end
 
     elsif params.key?(:pass)
       if @game.pass(current_user)
         @just_played_move = true
-        @invalid_request = false
-        @event_id = params[:move_id]
+        @valid_request = true
       end
 
     elsif params.key?(:undo)
@@ -66,8 +64,7 @@ class GamesController < ApplicationController
       if params[:undo] == "approved" && @game.undo(@game.opponent(current_user))
         logger.info "-- games#update -- undo performed for opponent!"
         @undo_performed = true
-        @invalid_request = false
-        @event_id = "#{params[:request_id]}-performed"
+        @valid_request = true
       end
 
     else
@@ -75,10 +72,7 @@ class GamesController < ApplicationController
     end
     @render_updates = @just_played_move || @undo_performed
 
-    vars = ["@invalid_request", "@just_played_move", "@undo_performed", "@undo_rejected", "@event_id"]
-    logger.info "-- games#update -- #{(vars.map {|v| "#{v}: #{instance_variable_get(v.intern).inspect}"}).join(", ")}"
-
-    if @render_updates && !@invalid_request
+    if @render_updates && @valid_request
       render_game_helper
 
       opponent = @game.opponent(current_user)
@@ -97,9 +91,9 @@ class GamesController < ApplicationController
       payload[:disable_undo_button] = true if (@undo_performed && @game.move_num < 2)
 
       update_data = {
-        event_type: "game-update",
+        event_name: "game-update",
         room_id: "game-#{@game.id}",
-        event_id: @event_id,
+        connection_id: params[:connection_id],
         payload: payload
       }
       # publish updated info to redis subscriber on Node.js server which then updates opponent client via websockets
@@ -114,33 +108,16 @@ class GamesController < ApplicationController
   end
 
   def request_undo
-    # if nil (not in session yet), then to_i converts nil to 0
-    session[:request_count] = session[:request_count].to_i + 1
-
-    id_params = ["game", @game.id, "move", @game.move_num, @game.player_color(current_user), session[:request_count]]
-    @request_id = id_params.join("-")
-    logger.info "-- games#request_undo -- request_id: #{@request_id.inspect}"
-    approval_form_html = render_to_string(partial: 'undo_approval_form', locals: { request_id: @request_id })
+    approval_form_html = render_to_string(partial: 'undo_approval_form')
 
     $redis.publish "game-events", ActiveSupport::JSON.encode({
-      event_type: "undo-request",
+      event_name: "undo-request",
       room_id: "game-#{@game.id}",
-      request_id: @request_id,
+      connection_id: params[:connection_id],
       payload: { undo_approval_form: approval_form_html }
     })
 
     respond_to { |format| format.js }
-  end
-
-  # testing and debugging only -- useful for visualing output of rulebook::handler
-  def testing_rulebook
-    @game = Game.find(params[:id])
-    @rulebook = Rulebook::Handler.new(
-      size: @game.board_size,
-      board: @game.active_board.tiles,
-      active_player_color: @game.player_color(current_user)
-    )
-    render file: '/games/testing_rulebook', layout: false
   end
 
   protected
@@ -186,10 +163,6 @@ class GamesController < ApplicationController
 
   def find_game
     @game = Game.find(params[:id])
-  end
-
-  def undo_request_cleanup
-    session[:request_count] = 0
   end
 
   def pretty_log_game_info(prefix)

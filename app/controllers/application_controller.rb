@@ -21,6 +21,10 @@ class ApplicationController < ActionController::Base
     end
   end
 
+  def generate_token
+    SecureRandom.urlsafe_base64(16)
+  end
+
   def require_login
     unless current_user
       session[:login_redirect_url] = request.original_url

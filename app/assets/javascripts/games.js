@@ -12,9 +12,7 @@ var ready = function() {
 
         turn_off_game_actions();
 
-        var move_id = 'game-' + game_id + '-move-' + move_num;
-        add_hidden_input('#game-action-form', 'hidden-turn-data', 'move_id', move_id);
-        socket.emit('submitted-game-action', { move_id: move_id, from: 'websocket' });
+        add_hidden_input('#game-action-form', 'hidden-field', 'connection_id', connection_id);
 
         console.log('--- form serialize --- ' + $('#game-action-form').serialize());
         return true;
@@ -32,9 +30,8 @@ function add_move_handler() {
         var tile_pos = $(this).data('board-pos');
         console.log('Inside click.new_move handler for tile pos: ' + tile_pos);
 
-        var move_id = 'game-' + game_id + '-move-' + move_num;
         add_hidden_input('#game-action-form', 'hidden-turn-data', 'new_move', tile_pos);
-        add_hidden_input('#game-action-form', 'hidden-turn-data', 'move_id', move_id);
+        add_hidden_input('#game-action-form', 'hidden-field', 'connection_id', connection_id);
 
         console.log('submitting form via jquery/ajax');
 
@@ -42,7 +39,6 @@ function add_move_handler() {
 
         console.log('--- form serialize --- ' + $('#game-action-form').serialize());
         $.post($('#game-action-form').attr('action'), $('#game-action-form').serialize(), on_success, 'script');
-        socket.emit('submitted-game-action', { move_id: move_id, from: 'websocket' });
     });
 }
 
@@ -59,8 +55,6 @@ function update_game(tiles, invalid_moves, header_html) {
         var selector = '#tile-' + invalid_moves[i] + ' > div.tile_container';
         $(selector).removeClass('clickable');
     }
-
-    move_num += 1;
 
     add_move_handler();
     enable_game_action_buttons();
@@ -85,7 +79,7 @@ function get_socket() {
 
     sockjs.on('connect', function() {
         console.log("sockjs successfully connected with protocol '" + sockjs.protocol + "'");
-        sockjs.emit('successfully-connnected', { info: 'hello server, client has connected' });
+        sockjs.emit('successfully-connnected', { connection_id: connection_id });
     });
 
     sockjs.on('close', function() {
@@ -102,12 +96,10 @@ function get_socket() {
         update_game(data.tiles, data.invalid_moves, data.header_html);
         modal.close(); //this also empties the modal of content
         if (data.disable_undo_button) $('#undo-button').prop('disabled', true);
-        sockjs.emit('received-game-update', { event_id: data.event_id });
     });
 
     sockjs.on('undo-request', function(data) {
         console.log("inside sockjs.on('undo-request', cb) callback, data= " + JSON.stringify(data));
-        socket.emit('received-undo-request', { request_id: data.event_id });
 
         if (!modal.currentlyDisplayed) {
             modal.open({ content: data.undo_approval_form });
@@ -130,6 +122,7 @@ function submit_undo_request(approval_status) {
     console.log("submitting undo approval form -- approval_status: " + approval_status);
     $('#undo-status').val(approval_status);
 
+    add_hidden_input('#undo-approval-form', 'hidden-field', 'connection_id', connection_id);
     $.post($('#undo-approval-form').attr('action'), $('#undo-approval-form').serialize(), on_success, 'script');
     modal.close();
 }

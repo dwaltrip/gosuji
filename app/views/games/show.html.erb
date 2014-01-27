@@ -16,6 +16,7 @@
 
       <%= form_tag({ action: :request_undo }, { id: 'request-undo-form', remote: true }) do %>
         <%= submit_tag 'Undo', class: 'button', id: 'undo-button', disabled: !@game.played_a_move(current_user) %>
+        <%= hidden_field_tag 'connection_id', @connection_id %>
       <% end %>
     </div>
 
@@ -28,7 +29,7 @@
 
 <%= javascript_tag do %>
   window.game_id = '<%= @game.id %>';
-  window.move_num = <%= @game.move_num + 1 %>;
+  window.connection_id = '<%= @connection_id %>';
 <% end %>
 
 <% javascript 'modal.js', 'games.js', 'event_emitter.js', 'sockjs_client', 'sockjs-0.3.min.js' %>

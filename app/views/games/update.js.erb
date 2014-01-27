@@ -1,7 +1,4 @@
-<% if @invalid_request %>
-  console.log("Invalid request to games#update");
-
-<% else %>
+<% if @valid_request %>
   console.log('beginnig to render update.js.erb');
 
   $('#header_container').html('<%= j render('game_stats', { game: @game }) %>');
@@ -21,10 +18,11 @@
 
   <% if @undo_performed %>
     turn_off_game_actions();
-    socket.emit('undo-performed', { event_id: '<%= @event_id %>', from: 'websocket' });
   <% end %>
 
-  window.move_num = <%= @game.move_num + 1 %>;
-
   console.log('finished updating via ajax');
+
+<% else %>
+  console.log("Invalid request to games#update");
+
 <% end %>
