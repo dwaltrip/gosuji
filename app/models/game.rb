@@ -203,8 +203,11 @@ class Game < ActiveRecord::Base
         self.boards.to_a[-2..-1].each { |board| board.destroy }
       end
 
+      # this is a presentation detail, we should find a way to move it outside the game model
+      stones_with_switched_highlighting = [prev_board.pos, self.active_board.pos]
+
       new_rulebook = self.get_rulebook(force_rebuild=true)
-      new_rulebook.calculate_undo_updates(prev_board, prev_invalid_moves, self.active_board.pos)
+      new_rulebook.calculate_undo_updates(prev_board, prev_invalid_moves, stones_with_switched_highlighting)
 
       true
     else

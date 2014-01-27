@@ -103,9 +103,9 @@ module Rulebook
       reset_ko
     end
 
-    def calculate_undo_updates(prev_board, prev_invalid_moves, new_last_move_played)
+    def calculate_undo_updates(prev_board, prev_invalid_moves, stones_with_switched_highlighting)
       log_msg = "prev_invalid_moves: #{prev_invalid_moves.inspect}"
-      log_msg << ", new_last_move_played: #{new_last_move_played.inspect}"
+      log_msg << ", stones_with_switched_highlighting: #{stones_with_switched_highlighting.inspect}"
       Rails.logger.info "-- Rulebook.calculate_undo_updates -- #{log_msg}"
       board_state_differences = Set.new
 
@@ -123,11 +123,13 @@ module Rulebook
         @undo_updates[color] = (prev_invalid_moves[color] | current_invalid_moves[color])
         @undo_updates[color] -= (prev_invalid_moves[color] & current_invalid_moves[color])
 
-        #add in board state differences
+        # add in board state differences
         @undo_updates[color] += board_state_differences
 
-        #add in last move played
-        @undo_updates[color].add new_last_move_played if new_last_move_played
+        # add in old last move and new last move (for most recent move highlighting)
+        stones_with_switched_highlighting.each do |pos|
+          @undo_updates[color].add pos if pos
+        end
       end
     end
 

@@ -100,6 +100,7 @@ function get_socket() {
         console.log("inside sockjs.on('game-update', cb) callback, data= " + JSON.stringify(data));
 
         update_game(data.tiles, data.invalid_moves, data.header_html);
+        modal.close(); //this also empties the modal of content
         if (data.disable_undo_button) $('#undo-button').prop('disabled', true);
         sockjs.emit('received-game-update', { event_id: data.event_id });
     });
