@@ -1,19 +1,17 @@
-<% if @valid_request %>
+<% if @update_processed %>
   console.log('beginnig to render update.js.erb');
 
   $('#header_container').html('<%= j render('game_stats', { game: @game }) %>');
 
-  <% if @render_updates %>
-    <% if @tiles %>
-      <% @tiles.each do |pos, tile| %>
-        var new_tile = $('<%= j render('tile', tile: tile) %>').find('.tile_container');
-        $('<%= "#tile-#{pos}" %>').html(new_tile[0].outerHTML);
-      <% end %>
+  <% if @tiles %>
+    <% @tiles.each do |pos, tile| %>
+      var new_tile = $('<%= j render('tile', tile: tile) %>').find('.tile_container');
+      $('<%= "#tile-#{pos}" %>').html(new_tile[0].outerHTML);
     <% end %>
+  <% end %>
 
-    <% if [1, 2].include?(@game.move_num) && @game.played_a_move(current_user) %>
-      $('#undo-button').prop('disabled', false);
-    <% end %>
+  <% if [1, 2].include?(@game.move_num) && @game.played_a_move(current_user) %>
+    $('#undo-button').prop('disabled', false);
   <% end %>
 
   <% if @undo_performed %>

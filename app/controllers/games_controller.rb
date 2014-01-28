@@ -45,41 +45,30 @@ class GamesController < ApplicationController
 
   def update
     pretty_log_game_info("-- games#update, before -- ")
-    @valid_request = false
 
-    if params.key?(:new_move)
-      if @game.new_move(params[:new_move].to_i, current_user)
-        @just_played_move = true
-        @valid_request = true
-      end
+    if params.key?(:new_move) && @game.new_move(params[:new_move].to_i, current_user)
+      @played_move = true
 
-    elsif params.key?(:pass)
-      if @game.pass(current_user)
-        @just_played_move = true
-        @valid_request = true
-      end
+    elsif params.key?(:pass) && @game.pass(current_user)
+      @played_move = true
 
     elsif params.key?(:undo)
       undo_data = decrypt_data(params[:undo_data])
-      logger.info "-- games#update -- undo_data: #{undo_data.inspect}"
-
-      move_num = undo_data[:move_num]
+      move_num = undo_data[:move_num] if undo_data
       undoing_player = @game.opponent(current_user)
 
       # current player has approved the undo which the opponent requested
       # verify current move_num matches the move_num when the undo request was made
       if params[:undo] == "approved" && move_num == @game.move_num && @game.undo(undoing_player)
-        logger.info "-- games#update -- undo performed for opponent!"
         @undo_performed = true
-        @valid_request = true
       end
 
     else
-      logger.info "-- games#update -- none of the expected data was found in params, which is a bit fishy"
+      logger.warn "-- games#update -- none of the expected data was found in params, which is a bit fishy"
     end
-    @render_updates = @just_played_move || @undo_performed
+    @update_processed = @played_move || @undo_performed
 
-    if @render_updates && @valid_request
+    if @update_processed
       render_game_helper
 
       opponent = @game.opponent(current_user)
@@ -93,7 +82,7 @@ class GamesController < ApplicationController
         invalid_moves: @game.invalid_moves(opponent),
         header_html: render_to_string(partial: 'game_stats', locals: { game: @game })
       }
-      # undo button needs to re-disabled if the only move for a player is undone
+      # undo button needs to be re-disabled if the only move for a player is undone
       # special case, handled awkwardly here for now
       payload[:disable_undo_button] = true if (@undo_performed && @game.move_num < 2)
 
@@ -137,16 +126,10 @@ class GamesController < ApplicationController
   end
 
   def decorated_tiles(player)
-    render_subset_only = (@just_played_move || @undo_performed)
-
-    if render_subset_only
-      tiles = {}
-    else
-      tiles = Array.new(@game.board_size ** 2)
-    end
+    tiles = (Hash.new if @update_processed) || Array.new(@game.board_size**2)
 
     viewer = @game.viewer(player)
-    @game.tiles_to_render(player, render_subset_only).each do |pos, tile_state|
+    @game.tiles_to_render(player, @update_processed).each do |pos, tile_state|
       tiles[pos] = TilePresenter.new(
         board_size: @game.board_size,
         state: tile_state,

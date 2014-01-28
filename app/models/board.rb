@@ -98,46 +98,6 @@ class Board < ActiveRecord::Base
     white_stones
   end
 
-  # for debugging, logging, and console experimentation
-  def pretty_print(console = false)
-    printer = Proc.new do |*args|
-      if console
-        puts *args
-      else
-        for log_note in args
-          logger.info log_note
-        end
-      end
-    end
-
-    black_stones, white_stones = self.stone_lists
-    printer.call "---------- pretty printing board with id #{self.id} ----------"
-    printer.call "Game Id: #{game_id.inspect}", "Move: #{move_num.inspect}", "Pos: #{pos.inspect}"
-    printer.call "Played by: #{game.player_at_move(self.move_num).username.inspect}" if self.move_num > 0
-    printer.call "Black Stones: #{black_stones.inspect}", "White Stones: #{white_stones.inspect}"
-    printer.call "---------- done pretty printing ----------"
-  end
-
-  def board_rows_string_repr
-    a = []
-    row = "|"
-    (0..(self.game.board_size**2 - 1)).each do |n|
-      if state(n) == GoApp::WHITE_STONE
-        row << "w|"
-      elsif state(n) == GoApp::BLACK_STONE
-        row << "b|"
-      else
-        row << " |"
-      end
-
-      if (n + 1) % self.game.board_size == 0
-        a << row
-        row = "|"
-      end
-    end
-    a
-  end
-
   def inspect
     regexp = /\Apos_[\d]+\Z/ # don't print out the 361 attributes storing tile state
     inspections =

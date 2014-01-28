@@ -27,11 +27,10 @@ var Modal = function(opts) {
 
     // Open the modal
     method.open = function (settings) {
-        console.log('-- hi friends');
         $content.empty().append(settings.content);
 
         $modal.css({
-            width: settings.width || 'auto', 
+            width: settings.width || 'auto',
             height: settings.height || 'auto'
         });
 
@@ -40,8 +39,6 @@ var Modal = function(opts) {
         $modal.show();
         $overlay.show();
         method.currentlyDisplayed = true;
-
-        console.log('-- bye friends');
     };
 
     // Close the modal

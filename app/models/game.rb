@@ -41,8 +41,8 @@ class Game < ActiveRecord::Base
     active_board.move_num + 1
   end
 
-  def tiles_to_render(player, just_played_new_move)
-    if just_played_new_move
+  def tiles_to_render(player, render_subset_only)
+    if render_subset_only
       tiles_to_update = self.get_rulebook.tiles_to_update(self.player_color(player))
 
       # rulebook doesnt have knowledge of previous board_states

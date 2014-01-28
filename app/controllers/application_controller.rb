@@ -30,7 +30,13 @@ class ApplicationController < ActionController::Base
   end
 
   def decrypt_data(encrypted_data)
-    encryptor.decrypt_and_verify(encrypted_data)
+    begin
+      encryptor.decrypt_and_verify(encrypted_data)
+    rescue => e
+      sep = "========"
+      logger.warn [sep, "decrypt_data failed!", "Error:", e.message, "Backtrace:", e.backtrace, sep].join("\n")
+      return nil
+    end
   end
 
   def encryptor
