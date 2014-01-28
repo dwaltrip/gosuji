@@ -20,16 +20,16 @@ module GamesHelper
     else
       msg << "Move #{game.move_num}"
       msg << " (#{game.player_color(game.inactive_player).capitalize[0]}"
-    end
 
-    if board.pos
-      col_num = board.pos % game.board_size
-      row_label = game.board_size - (board.pos / game.board_size)
-      msg << " #{GoApp::COLUMN_LABELS[col_num]}#{row_label})"
-    elsif board.pass
-      msg << " pass)"
-    else
-      logger.info "-- GamesHelper.move_status_message -- oops, something wrong"
+      if board.pos
+        col_num = board.pos % game.board_size
+        row_label = game.board_size - (board.pos / game.board_size)
+        msg << " #{GoApp::COLUMN_LABELS[col_num]}#{row_label})"
+      elsif board.pass
+        msg << " pass)"
+      else
+        logger.info "-- GamesHelper.move_status_message -- oops, something wrong"
+      end
     end
 
     msg << ": #{game.player_color(game.active_player).capitalize} to play"

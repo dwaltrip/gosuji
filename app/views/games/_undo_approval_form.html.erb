@@ -12,6 +12,7 @@
   <%= submit_tag 'No', name: :undo_rejected, id: 'no-button', class: 'button' %>
 
   <%= hidden_field_tag :undo, 'rejected', id: 'undo-status' %>
+  <%= hidden_field_tag :undo_data, undo_data %>
 <% end %>
 
 </div>

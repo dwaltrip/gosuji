@@ -60,8 +60,15 @@ class GamesController < ApplicationController
       end
 
     elsif params.key?(:undo)
+      undo_data = decrypt_data(params[:undo_data])
+      logger.info "-- games#update -- undo_data: #{undo_data.inspect}"
+
+      move_num = undo_data[:move_num]
+      undoing_player = @game.opponent(current_user)
+
       # current player has approved the undo which the opponent requested
-      if params[:undo] == "approved" && @game.undo(@game.opponent(current_user))
+      # verify current move_num matches the move_num when the undo request was made
+      if params[:undo] == "approved" && move_num == @game.move_num && @game.undo(undoing_player)
         logger.info "-- games#update -- undo performed for opponent!"
         @undo_performed = true
         @valid_request = true
@@ -108,7 +115,9 @@ class GamesController < ApplicationController
   end
 
   def request_undo
-    approval_form_html = render_to_string(partial: 'undo_approval_form')
+    # the move_num value created here is verified in games#update if an undo request is approved
+    undo_data = encrypt_data({ move_num: @game.move_num })
+    approval_form_html = render_to_string(partial: 'undo_approval_form', locals: { undo_data: undo_data })
 
     $redis.publish "game-events", ActiveSupport::JSON.encode({
       event_name: "undo-request",

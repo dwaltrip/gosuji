@@ -25,6 +25,18 @@ class ApplicationController < ActionController::Base
     SecureRandom.urlsafe_base64(16)
   end
 
+  def encrypt_data(data)
+    encryptor.encrypt_and_sign(data)
+  end
+
+  def decrypt_data(encrypted_data)
+    encryptor.decrypt_and_verify(encrypted_data)
+  end
+
+  def encryptor
+    @encryptor ||= ActiveSupport::MessageEncryptor.new(Rails.application.config.secret_key_base)
+  end
+
   def require_login
     unless current_user
       session[:login_redirect_url] = request.original_url

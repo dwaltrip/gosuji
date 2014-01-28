@@ -30,6 +30,7 @@ class SessionsController < ApplicationController
 
     session[:user_id] = nil
     @current_user = nil
+    reset_session
 
     redirect_to games_path, :notice => "Logged out!"
   end
