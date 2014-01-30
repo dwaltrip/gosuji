@@ -170,17 +170,176 @@ feature "gameplay actions" do
     # undo should not be possible once again, as all moves have been reverted
     as(players) { expect(page).not_to have_button("Undo") }
   end
+
+
+  scenario "both players pass, enter scoring phase, mark which stone groups are dead, and finalize the game" do
+    # this scenario assumes japaense counting: senseis.xmp.net/?JapaneseCounting
+    # board state as game enters end game scoring:
+    # |_|w|b|_|w|
+    # |w|w|b|_|b|
+    # |_|w|_|b|_|
+    # |b|w|w|b|b|
+    # |_|w|_|b|_|
+    colors = [:black, :white]
+    opponent_colors = { :black => :white, :white => :black }
+    territory = { black: [3, 4, 8, 14, 24], white: [0, 10, 15, 20] }
+
+    alive_stones = {  black: [2, 7, 9, 13, 18, 19, 23],
+                      white: [1, 5, 6, 11, 16, 17, 21] }
+    # only one stone per board section (clicking one stone marks all others as dead/alive)
+    # here each side only has one dead stone, but it is still worth mentioning
+    dead_stones { black: [15], white: [4] }
+
+    resulting_territory = {}
+    # if there was more than one dead stone per side, this would have to be by hand (instead of the '.dup')
+    colors.map do |color|
+      resulting_territory[color] = { dead_stones[color] => territory[opponent_colors[color]].dup }
+    end
+
+    neutral_initially = [3, 8, 10, 12, 20, 22]
+    two_or_more_eyes = { black: [14, 24], white: [] }
+    single_eyes = { black: [], white: [0] }
+
+    initial_moves = {}
+    colors.each { |color| initial_moves[color] = alive_stones[color] + dead_stones[color] }
+
+    move_count = initial_moves[:black].length + initial_moves[:white].length
+    size = 5
+    players, game, color_map = setup_game_and_sessions(initial_moves: initial_moves, board_size: size)
+    game.komi = komi[:white]
+    game.save
+    black_player, white_player = players
+    scoring instructions = [
+      "The game has entered the scoring phase.",
+      "Please identify which stone groups are dead by clicking on them.",
+      "You can fix a mistake by clicking on the stone group while holding the CTRL key.",
+      "When finished, press the 'Done' button to finalize the game."
+    ].join(" ")
+
+    komi = { black: 0, white: 0 }
+    final_scores = {}
+    end_of_game_notices = ["The game between #{white_player.username} and #{black_player.username} has ended."]
+
+    colors.each do |color|
+      territory_count = territory[color].length
+      captures = dead_stones[opponent_colors[color]].length
+      final_scores[color] = territory_count + catpures + komi[color]
+
+      notice = "#{color.capitalize}: #{territory_count} territory + #{captures} captures"
+      notice << " + #{komi[color]}" if komi[color] > 0
+      notice << " = #{final_scores[color]}"
+
+      end_of_game_notices << notice
+    end
+
+    winning_color = final_scores.each.sort_by { |color, score| score }.map { |color, score| color }.last
+    winner = game.send("#{winning_color}_player")
+    loser = game.send("#{opponent_colo[winning_color]}_player")
+    difference = final_scores.values.max - final_scores.values.min
+
+    final_result = "Final result: #{winning_color.capitalize} (#{winner.username}) has defeated "
+    final_result << "#{opponent_color[winning_color].capitalize} (#{loser.username}) by #{difference} points"
+    end_of_game_notices << final_result
+
+    ### SETUP OVER -- now walk through the feature ###
+
+    # both players pass, to enter "end game scoring" phase
+    as(players) do |player|
+      expect(page).to have_status_message(move_num: move_count)
+      click_button "Pass"
+      move_count += 1
+    end
+
+    # status message should update to inform players what to do
+    as(players) do
+      expect(page).to have_status_message(end_game_scoring: true) }
+      expect(notification_modal).to have_content(scoring_instructions)
+      notification_modal.click_button "Ok"
+    end
+
+    # check initial display of board before players mark dead stones
+    as(players) do
+      colors.each do |color|
+        # two eyes should be territory
+        two_or_more_eyes[color].each do |pos|
+          expect(find(selector_for_tile(pos)).to have_territory(color: color)
+        end
+
+        # single eyes should be neutral/blank. either is seki (no points), or the group is dead
+        single_eyes[color].each do |pos|
+          expect(find(selector_for_tile(pos))).to have_blank_tile
+        end
+      end
+
+      # should be neutral/blank
+      neutral_initially.each { |pos| expect(find(selector_for_tile(pos)).to have_blank_tile }
+    end
+
+    colors.each do |color|
+      opponent_color = opponent_colors[color]
+      dead_stones[color].each do |pos|
+
+        # mark stones as dead (doesn't matter who marks them). expect ajax request
+        as(black_player) do
+          expect{ mark_as_dead(pos) }.to change{ active_ajax_requests }.by(1)
+        end
+
+        as(players) do
+          # verify resulting territory from marking stone as dead is displayed properly
+          resulting_territory[opponent_color][pos].each do |territory_pos|
+            expect(find(selector_for_tile(territory_pos))).to have_territory(color: opponent_color)
+          end
+
+          # check score updates after marking each dead stone in here maybe?
+        end
+      end
+    end
+
+    # both players click 'done' button. expect an ajax request
+    as(players) do |player, counter|
+      expect{ click_button "Done" }.to change{ active_ajax_requests }.by(1)
+
+      if counter == 0
+        expect(page).to have_status_message(end_game_scoring: true, waiting_for_opponent: true)
+      end
+    end
+
+    # game is now over
+    as(players) do
+      end_of_game_notices.each do |notice|
+        expect(notification_modal).to have_content(notice)
+      end
+
+      notification_modal.click_button "Ok"
+      expect(page).to have_status_message(game_over: true, player_scores: final_scores)
+    end
+  end
 end
 
 
 # helper methods to be used as natural rspec matchers, by returning calls to the macther have_selector
 # this gives more useful failure messages, better use of capybara's synching/waiting abilities
+
 def have_status_message(options)
   content_string =
     if options[:move_number]
       ("Game Start" if (options[:move_number] == 0)) || "Move #{options[:move_number]}"
+
     elsif options[:pass]
       "#{options[:color].capitalize[0]} pass"
+
+    elsif options[:end_game_scoring]
+      if options[:waiting_for_opponent]
+        "Waiting for opponent to finish marking the board and click 'Done'"
+      else
+        "End of game scoring phase!"
+      end
+
+    elsif options[:game_over]
+      scores = options[:player_scores]
+      winning_color = scores.each.sort_by { |color, score| score }.map { |color, score| color }.last
+      difference = scores.values.max - scores.values.min
+      "Game Over: #{winning_color.capitalize[0]} + #{difference}"
     end
 
   have_content(content_string)
@@ -230,6 +389,33 @@ def undo_modal
   find("#undo-approval-container")
 end
 
+def notification_modal
+  find("#notification-container")
+end
+
+
+def mark_as_dead(pos)
+  #keypress_and_click "ctrlKey", selector_for_tile(pos)
+  find(selector_for_tile(pos)).click
+end
+
+def undo_mark_as_dead(pos)
+  keypress_and_click "shiftKey", selector_for_tile(pos)
+end
+
+def keypress_and_click(key, selector)
+  js_code = [
+    "var e = jQuery.Event('click');",
+    "e.#{key} = true;",
+    "$('#{selector}').trigger(e);"
+  ]
+  evaluate_script(js_code.join(" "))
+end
+
+def active_ajax_requests
+  evaluate_script("$.active")
+end
+
 
 # create game, load game in browser for both players, and make sure websockets are working
 def setup_game_and_sessions(options={})
@@ -237,6 +423,20 @@ def setup_game_and_sessions(options={})
   board_size = options[:board_size] || GoApp::MIN_BOARD_SIZE
   game = create_active_game(players, board_size=board_size)
   color_map = Hash[players.map { |player| [player.id, game.player_color(player)] }]
+
+  if options.key(:initial_moves)
+    initial_moves = []
+    options[:initial_moves][:black].length.times do |n|
+      [:black, :white].each do |color|
+        next_move = options[:initial_moves][color][n]
+        initial_moves << next_move if next_move
+      end
+    end
+
+    Cycle.new(players).cycle(initial_moves.length) do |counter, player|
+      game.new_move(initial_moves[counter], player)
+    end
+  end
 
   # both players visit site
   as(players) do |player|
@@ -283,10 +483,6 @@ def in_browser(player)
   yield
 end
 
-
-def active_ajax_requests
-  evaluate_script("$.active")
-end
 
 # useful for debugging
 def save_page_html(current_page, options={})
