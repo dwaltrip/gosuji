@@ -94,7 +94,7 @@ feature "gameplay actions" do
   end
 
 
-  scenario "player plays move, then requests undo, and other player approves the undo" do
+  scenario "player plays move, then requests undo, and other player approves the undo", :focus do
     players, game, color_map = setup_game_and_sessions
     size = game.board_size
 
@@ -172,7 +172,7 @@ feature "gameplay actions" do
   end
 
 
-  scenario "both players pass, enter scoring phase, mark which stone groups are dead, and finalize the game" do
+  scenario "both players pass, enter scoring phase, mark which stone groups are dead, and finalize the game", :skip do
     # this scenario assumes japaense counting: senseis.xmp.net/?JapaneseCounting
     # board state as game enters end game scoring:
     # |_|w|b|_|w|
@@ -188,7 +188,7 @@ feature "gameplay actions" do
                       white: [1, 5, 6, 11, 16, 17, 21] }
     # only one stone per board section (clicking one stone marks all others as dead/alive)
     # here each side only has one dead stone, but it is still worth mentioning
-    dead_stones { black: [15], white: [4] }
+    dead_stones = { black: [15], white: [4] }
 
     resulting_territory = {}
     # if there was more than one dead stone per side, this would have to be by hand (instead of the '.dup')
@@ -252,7 +252,7 @@ feature "gameplay actions" do
 
     # status message should update to inform players what to do
     as(players) do
-      expect(page).to have_status_message(end_game_scoring: true) }
+      expect(page).to have_status_message(end_game_scoring: true)
       expect(notification_modal).to have_content(scoring_instructions)
       notification_modal.click_button "Ok"
     end
@@ -262,7 +262,7 @@ feature "gameplay actions" do
       colors.each do |color|
         # two eyes should be territory
         two_or_more_eyes[color].each do |pos|
-          expect(find(selector_for_tile(pos)).to have_territory(color: color)
+          expect(find(selector_for_tile(pos))).to have_territory(color: color)
         end
 
         # single eyes should be neutral/blank. either is seki (no points), or the group is dead
@@ -272,7 +272,9 @@ feature "gameplay actions" do
       end
 
       # should be neutral/blank
-      neutral_initially.each { |pos| expect(find(selector_for_tile(pos)).to have_blank_tile }
+      neutral_initially.each do |pos|
+        expect(find(selector_for_tile(pos))).to have_blank_tile
+      end
     end
 
     colors.each do |color|
@@ -346,7 +348,7 @@ def have_status_message(options)
 end
 
 def have_blank_tile(options={})
-  options[:css_class] = ".board_tile"
+  options[:css_class] = ".tile-image"
   have_image("blank_tile", options)
 end
 
@@ -359,7 +361,7 @@ def have_stone(options={})
     img_src << ".png"
     options[:ends_with] = true
   end
-  options[:css_class] = ".board_tile"
+  options[:css_class] = ".tile-image"
 
   have_image(img_src, options)
 end

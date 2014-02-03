@@ -7,11 +7,9 @@
   Do you want to allow the undo?
 </div>
 
-<%= form_tag({ action: :update }, { id: 'undo-approval-form' }) do %>
-  <%= submit_tag 'Yes', name: :undo_approved, id: 'yes-button', class: 'button' %>
-  <%= submit_tag 'No', name: :undo_rejected, id: 'no-button', class: 'button' %>
-
-  <%= hidden_field_tag :undo, 'rejected', id: 'undo-status' %>
+<%= form_tag({ action: :undo_turn }, { id: 'undo-approval-form' }) do %>
+  <%= submit_tag 'Yes', name: 'approved', id: 'yes-button', class: 'button' %>
+  <%= submit_tag 'No', name: 'rejected', id: 'no-button', class: 'button' %>
   <%= hidden_field_tag :undo_data, undo_data %>
 <% end %>
 

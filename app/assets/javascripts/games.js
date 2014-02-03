@@ -3,78 +3,68 @@ console.log('Successfully loaded games.js')
 var socket = null;
 var modal = new Modal({ closeButton: false });
 
-var ready = function() {
-    add_move_handler();
+$(document).ready(function() {
+    console.log('$(document).ready handler');
 
-    $('#game-action-form').on('submit.game_action', function(e) {
+    // new move
+    $('#board-table').on('click.new_move', '.tile-container.clickable', function() {
+        disable_turn_actions();
+        ajax_post_helper(this, { new_move: $(this).data('board-pos') }, update_game);
+    });
+
+    // pass turn
+    $('#pass-turn-form').on('submit.pass_turn', function(e) {
         e.preventDefault();
-        console.log("Inside #game-action-form on 'submit' callback");
-
-        turn_off_game_actions();
-
-        add_hidden_input('#game-action-form', 'hidden-field', 'connection_id', connection_id);
-
-        console.log('--- form serialize --- ' + $('#game-action-form').serialize());
-        return true;
+        disable_turn_actions();
+        ajax_post_helper(this, null, update_game);
     });
 
-    console.log('--- game_id: ' + game_id);
+    // undo request approval/rejection
+    $(modal.selector).on('click.undo_approval', '#undo-approval-form .button', function(e) {
+        e.preventDefault();
+        approval_status = $(this).attr('name');
+
+        if (approval_status === "approved") disable_turn_actions();
+        ajax_post_helper(this, { undo_status: approval_status }, update_game);
+
+        modal.close();
+    });
+
     socket = get_socket();
-    socket.emit('subscribe-to-updates', { room_id: 'game-' + game_id });
-};
+    socket.emit('subscribe-to-updates', { room_id: window.room_id });
+});
 
-function add_move_handler() {
-    console.log('Adding click handler to clickable tiles.');
+function update_game(data) {
+    console.log('-- update_game -- data:', data);
 
-    $('div.tile_container.clickable').on('click.new_move', function() {
-        var tile_pos = $(this).data('board-pos');
-        console.log('Inside click.new_move handler for tile pos: ' + tile_pos);
+    $('#status-message').text(data.status_message);
+    $('#black-capture-count').text(data.captures.black);
+    $('#white-capture-count').text(data.captures.white);
 
-        add_hidden_input('#game-action-form', 'hidden-turn-data', 'new_move', tile_pos);
-        add_hidden_input('#game-action-form', 'hidden-field', 'connection_id', connection_id);
-
-        console.log('submitting form via jquery/ajax');
-
-        turn_off_game_actions();
-
-        console.log('--- form serialize --- ' + $('#game-action-form').serialize());
-        $.post($('#game-action-form').attr('action'), $('#game-action-form').serialize(), on_success, 'script');
-    });
-}
-
-function update_game(tiles, invalid_moves, header_html) {
-    $('#header_container').html(header_html);
-
-    for(var i = 0; i < tiles.length; i++) {
-        var new_tile = $(tiles[i].html).find('div.tile_container');
-        $('#tile-' + tiles[i].pos).html(new_tile[0].outerHTML);
+    // for the now active player, re-enable turn actions (clickable tiles and pass button)
+    if (data.active_player === true) {
+        $('.tile-container.playable').addClass('clickable');
+        $('#pass-button').prop('disabled', false);
     }
+    if (hasKey(data, 'undo_button_disabled')) $('#undo-button').prop('disabled', data.undo_button_disabled);
 
-    $('div.tile_container.empty_tile').addClass('clickable');
-    for(var i = 0; i < invalid_moves.length; i++) {
-        var selector = '#tile-' + invalid_moves[i] + ' > div.tile_container';
-        $(selector).removeClass('clickable');
+    // update necessary tiles. no need to toggle any event listeners, thanks to event delegation
+    for(var i = 0, len = data.tiles.length; i < len; i++) {
+        var tile = data.tiles[i];
+        var $tile = $('#tile-' + tile.pos);
+
+        $tile.removeClass("empty black white playable clickable").addClass(tile.classes);
+        if (hasKey(tile, 'image_src')) $tile.find('.tile-image').attr('src', tile.image_src);
     }
-
-    add_move_handler();
-    enable_game_action_buttons();
-    $('.hidden-turn-data').remove();
 }
 
-function turn_off_game_actions() {
-    $('div.tile_container.clickable').removeClass('clickable');
-    $('div.tile_container').off('click.new_move');
-
-    $('#game-action-form .button').prop('disabled', true);
-}
-
-function enable_game_action_buttons() {
-    $('#game-action-form .button').prop('disabled', false);
+function disable_turn_actions() {
+    $('div.tile-container.clickable').removeClass('clickable');
+    $('#pass-button').prop('disabled', true);
 }
 
 function get_socket() {
     console.log('-- sockjs_url: ' + sockjs_url + '\n');
-
     var sockjs = new SockjsClient(sockjs_url);
 
     sockjs.on('connect', function() {
@@ -92,55 +82,41 @@ function get_socket() {
 
     sockjs.on('game-update', function(data) {
         console.log("inside sockjs.on('game-update', cb) callback, data= " + JSON.stringify(data));
-
-        update_game(data.tiles, data.invalid_moves, data.header_html);
-        modal.close(); //this also empties the modal of content
-        if (data.disable_undo_button) $('#undo-button').prop('disabled', true);
+        update_game(data);
+        modal.close();
     });
 
     sockjs.on('undo-request', function(data) {
         console.log("inside sockjs.on('undo-request', cb) callback, data= " + JSON.stringify(data));
-
-        if (!modal.currentlyDisplayed) {
-            modal.open({ content: data.undo_approval_form });
-
-            $(modal.contentId + " #yes-button").on('click.undo-approval', function(e) {
-                e.preventDefault();
-                submit_undo_request('approved');
-            });
-            $(modal.contentId + " #no-button").on('click.undo-approval', function(e) {
-                e.preventDefault();
-                submit_undo_request('rejected');
-            });
-        }
+        if (!modal.currentlyDisplayed) modal.open({ content: data.approval_form });
     });
 
     return sockjs;
 }
 
-function submit_undo_request(approval_status) {
-    console.log("submitting undo approval form -- approval_status: " + approval_status);
-    $('#undo-status').val(approval_status);
+function ajax_post_helper(form_elem, extra_data, on_success_callback) {
+    var $form = $(form_elem).closest('form');
+    console.log('-- entering ajax_post -- form: ', $form.attr('id'));
+    extra_data = extra_data || {};
+    extra_data.connection_id = window.connection_id;
 
-    add_hidden_input('#undo-approval-form', 'hidden-field', 'connection_id', connection_id);
-    $.post($('#undo-approval-form').attr('action'), $('#undo-approval-form').serialize(), on_success, 'script');
-    modal.close();
-}
-
-function on_success(data, textStatus, jqXHR) {
-    console.log('-- ajax post succeeded! -- textStatus: ' + textStatus);
-}
-
-function add_hidden_input(form_selector, cls, name, value) {
+    for(var name in extra_data) {
         $('<input />', {
             type: 'hidden',
             name: name,
-            value: value,
-            class: cls
-        }).appendTo(form_selector);
+            value: extra_data[name],
+            class: 'hidden-data'
+        }).appendTo($form);
+    }
+
+    console.log('-- ajax_helper -- $.post for:', $form.attr('id'), '-- $form.serialize():', $form.serialize(), "\n");
+    $.post($form.attr('action'), $form.serialize(), on_success_callback, 'json');
+
+    // clear out hidden data, so future ajax actions have clean slate
+    $('.hidden-data', $form).remove();
 }
 
-$(document).ready(function() {
-    console.log('$(document).ready(function() { ... }) -- inside callback');
-    ready();
-});
+function hasKey(obj, key) {
+    return Object.prototype.hasOwnProperty.call(obj, key);
+}
+

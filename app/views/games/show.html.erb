@@ -2,33 +2,39 @@
 
 <div id='game_container'>
 
-  <div id='header_container'>
+  <div id='header-container'>
     <%= render 'game_stats', { game: @game } %>
   </div>
 
   <div id='board_container'>
     <div id='game-actions-container'>
-
-      <%= form_tag({ action: :update }, { id: 'game-action-form', remote: true }) do %>
-        <%= submit_tag 'Done', name: 'done-scoring', class: 'button' if @game.end_game_scoring? %>
-        <%= submit_tag 'Pass', name: 'pass', class: 'button', disabled: current_user != @game.active_player %>
+      <%= form_tag({ action: :pass_turn }, { id: 'pass-turn-form' }) do %>
+        <%= submit_tag 'Pass', class: 'button', id: 'pass-button', disabled: current_user != @game.active_player %>
       <% end %>
 
       <%= form_tag({ action: :request_undo }, { id: 'request-undo-form', remote: true }) do %>
-        <%= submit_tag 'Undo', class: 'button', id: 'undo-button', disabled: !@game.played_a_move(current_user) %>
+        <%= submit_tag 'Undo', class: 'button', id: 'undo-button', disabled: !@game.played_a_move?(current_user) %>
         <%= hidden_field_tag 'connection_id', @connection_id %>
+      <% end %>
+
+      <% if false %>
+        <%= form_tag({ action: :update_scoring }, { id: 'scoring-form', remote: true }) do %>
+          <%= submit_tag 'Done', name: 'done', class: 'button', disabled: !@game.end_game_scoring? %>
+        <% end %>
       <% end %>
     </div>
 
-    <table class='board-table'>
-      <%= render partial: 'games/tile', collection: @tiles %>
-    </table>
+    <%= form_tag({ action: :new_move }, { id: 'new-move-form' }) do %>
+      <table id='board-table' class='board-table'>
+        <%= render partial: 'games/tile', collection: @tiles %>
+      </table>
+    <% end %>
   </div>
 
 </div>
 
 <%= javascript_tag do %>
-  window.game_id = '<%= @game.id %>';
+  window.room_id = '<%= @room_id %>';
   window.connection_id = '<%= @connection_id %>';
 <% end %>
 

@@ -2,7 +2,9 @@ class TilePresenter
   attr_accessor :is_star_point, :is_most_recent_move, :is_ko
   attr_reader :pos
 
-  @@base = ActionController::Base.new()
+  BASE_DIR ="game_board/#{GoApp::TILE_PIXEL_SIZE}px"
+
+  @@ActionControllerBase = ActionController::Base.new()
 
   def initialize(params)
     @board_size = params[:board_size]
@@ -10,7 +12,6 @@ class TilePresenter
     @pos = params[:pos]
     @viewer = params[:viewer]
     @invalid_moves = params[:invalid_moves] || Set.new
-    @base_dir ="game_board/#{GoApp::TILE_PIXEL_SIZE}px"
 
     @is_star_point = (GoApp::STAR_POINTS[@board_size].include?(@pos))
     @is_most_recent_move = false
@@ -22,7 +23,7 @@ class TilePresenter
   end
 
   def preview_stone_path
-    "#{@base_dir}/#{@viewer.color}_stone_preview.png"
+    "#{BASE_DIR}/#{@viewer.color}_stone_preview.png"
   end
 
   def alt_text
@@ -39,12 +40,21 @@ class TilePresenter
     end
   end
 
+  def container_classes
+    classes = ["tile-container", tile_type, ("playable" if playable?), ("clickable" if clickable?)]
+    classes.compact.join(" ")
+  end
+
   def clickable?
     (@viewer.type == :active_player) && playable?
   end
 
   def has_preview_stone?
-    (@viewer.type != :observer) and playable?
+    (@viewer.type != :observer)
+  end
+
+  def playable?
+    is_empty? and (not is_invalid_move?) and (not is_ko?)
   end
 
   def on_left_side?
@@ -58,7 +68,7 @@ class TilePresenter
   def to_html(viewer)
     _tmp = @viewer
     @viewer = viewer
-    html_string = @@base.render_to_string(partial: 'games/tile', locals: { tile: self })
+    html_string = @@ActionControllerBase.render_to_string(partial: 'games/tile', locals: { tile: self })
     @viewer = _tmp
     html_string
   end
@@ -70,7 +80,7 @@ class TilePresenter
   private
 
   def display_image_dir
-    dir = @base_dir.dup
+    dir = BASE_DIR.dup
 
     if is_ko?
       dir << '/ko_marker_tiles'
@@ -115,10 +125,6 @@ class TilePresenter
     end
 
     filename_chunks.join('_')
-  end
-
-  def playable?
-    is_empty? and (not is_invalid_move?) and (not is_ko?)
   end
 
   def is_empty?

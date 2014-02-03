@@ -25,11 +25,11 @@ class ApplicationController < ActionController::Base
     SecureRandom.urlsafe_base64(16)
   end
 
-  def encrypt_data(data)
+  def encrypt(data)
     encryptor.encrypt_and_sign(data)
   end
 
-  def decrypt_data(encrypted_data)
+  def decrypt(encrypted_data)
     begin
       encryptor.decrypt_and_verify(encrypted_data)
     rescue => e

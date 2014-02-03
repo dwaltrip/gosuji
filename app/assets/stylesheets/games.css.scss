@@ -21,39 +21,37 @@ h1 {
     line-height: 0;
 }
 
-.tile_container {
+.tile-container {
     width: 29px;
     height: 29px;
     position: relative;
     z-index: 1;
 }
 
-img.board_tile, img.preview_stone {
+img.tile-image, img.hover-image {
     position: absolute;
     top: 0;
     left: 0;
 }
 
-img.board_tile {
+img.tile-image {
     z-index: 1;
 }
 
-img.preview_stone {
+img.hover-image {
     z-index: 2;
     display: none;
 }
 
-//.tile_container:hover > img.preview_stone {
-.tile_container:hover img.preview_stone {
+.tile-container.playable:hover img.hover-image {
     display: block;
 }
 
-div.tile_container.clickable {
+.tile-container.clickable {
     cursor: pointer;
 }
 
-
-div#header_container {
+div#header-container {
     text-align: center;
     margin: 10px 0 5px 0;
     background-color: #dce9f9;

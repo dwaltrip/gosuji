@@ -41,8 +41,8 @@ class Game < ActiveRecord::Base
     active_board.move_num + 1
   end
 
-  def tiles_to_render(player, render_subset_only)
-    if render_subset_only
+  def tiles_to_render(player, render_udpates_only)
+    if render_udpates_only
       tiles_to_update = self.get_rulebook.tiles_to_update(self.player_color(player))
 
       # rulebook doesnt have knowledge of previous board_states
@@ -191,7 +191,7 @@ class Game < ActiveRecord::Base
   end
 
   def undo(undoing_player)
-    if [ACTIVE, END_GAME_SCORING].include?(self.status) && self.played_a_move(undoing_player)
+    if [ACTIVE, END_GAME_SCORING].include?(self.status) && self.played_a_move?(undoing_player)
       prev_board = self.active_board
       prev_invalid_moves = self.get_rulebook.invalid_moves
 
@@ -282,7 +282,7 @@ class Game < ActiveRecord::Base
     @rulebook
   end
 
-  def played_a_move(player)
+  def played_a_move?(player)
     (player_color(player) && ((move_num >= 2) || (move_num == 1 && player == inactive_player)))
   end
 
