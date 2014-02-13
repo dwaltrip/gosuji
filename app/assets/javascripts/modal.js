@@ -38,16 +38,22 @@ var Modal = function(opts) {
     this.open = function (settings) {
         $content.empty().append(settings.content);
 
-        $modal.css({
-            width: settings.width || 'auto',
-            height: settings.height || 'auto'
-        });
+        function displayModal() {
+            $modal.css({
+                width: settings.width || 'auto',
+                height: settings.height || 'auto'
+            });
 
-        center();
-        $(window).bind('resize.modal', center);
-        $modal.show();
-        $overlay.show();
-        that.currentlyDisplayed = true;
+            center();
+            $(window).bind('resize.modal', center);
+
+            $modal.show();
+            $overlay.show();
+            that.currentlyDisplayed = true;
+        }
+        //displayModal();
+        // dont ask me why, but notifications content would display uncentered without this (other content was fine)
+        setTimeout(displayModal, 30);
     };
 
     // Close the modal

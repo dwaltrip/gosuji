@@ -16,6 +16,8 @@ GoApp::Application.routes.draw do
       post :pass_turn
       post :undo_turn
       post :request_undo
+      post :mark_stones
+      post :done_scoring
     end
   end
 

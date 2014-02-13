@@ -3,7 +3,7 @@
 <% end %>
 
 <td>
-  <%= content_tag :div, id: "tile-#{tile.pos}", :class => tile.container_classes, "data-board-pos" => tile.pos do %>
+  <%= content_tag :div, id: "tile-#{tile.pos}", :class => tile.container_classes, "data-pos" => tile.pos do %>
     <%= image_tag(tile.display_image_path, { alt: tile.alt_text, class: "tile-image" }) %>
     <% if tile.has_preview_stone? %>
       <%= image_tag(tile.preview_stone_path, { alt: "preview stone", class: "hover-image" }) %>

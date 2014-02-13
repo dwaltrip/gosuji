@@ -40,6 +40,19 @@ class GamesController < ApplicationController
   def show
     pretty_log_game_info("-- games#show -- ")
     @connection_id = generate_token
+
+    if @game.end_game_scoring?
+      @just_entered_scoring_phase = true
+      #@scoring_tiles = @game.scoring_tiles # something like this..
+
+      # two approaches
+      # 1) allow for @game.scoring_tiles to render a) ALL tiles or b) just the minimum necessary
+      #    to update an already shown game from two passes in a row -> initial scoring state
+      # 2) it only generates the b) from 1), and we merge overwrite portions of the regular @tiles data
+    else
+      #@tiles = decorated_tiles(current_user, render_updates_only=false)
+    end
+
     @tiles = decorated_tiles(current_user, render_updates_only=false)
   end
 
@@ -49,7 +62,18 @@ class GamesController < ApplicationController
   end
 
   def pass_turn
-    update_helper @game.pass(current_user)
+    if @game.pass(current_user)
+      if @game.active?
+        update_helper(true)
+      elsif @game.end_game_scoring?
+        @just_entered_scoring_phase = true
+        scoring_helper(true)
+      else
+        logger.info "\n---- oops ----\n"
+      end
+    else
+      render nothing: true
+    end
   end
 
   def undo_turn
@@ -70,6 +94,14 @@ class GamesController < ApplicationController
     respond_to { |format| format.js }
   end
 
+  def mark_stones
+    render nothing: true
+  end
+
+  def done_scoring
+    render nothing: true
+  end
+
 
   private
 
@@ -78,8 +110,6 @@ class GamesController < ApplicationController
 
     if update_action_was_successful
       @tiles = decorated_tiles(current_user)
-      logger.info "-- games#update_helper -- @game.invalid_moves: #{@game.invalid_moves.inspect}"
-      logger.info "-- games#update_helper -- @tiles.length: #{@tiles.length}"
 
       # if ever necessary, we can merge additional data into the opponenet_data hash
       # the 'JSON.parse' foolishness is needed as I couldn't make Jbuilder skip the actual JSON string encoding
@@ -98,6 +128,28 @@ class GamesController < ApplicationController
       render nothing: true
     end
   end
+
+
+  ####====###
+  def scoring_helper(scoring_update_was_successful)
+    if scoring_update_was_successful
+      # some potential things that might happen when fully implemented
+      #@scoring_data = @game.scoring_data # this method interacts with ScoreBot
+      #@tiles = @game.scoring_tiles_to_render(pos)
+      #@tiles = @game.scoring_tiles_to_render
+
+      @tiles = []
+
+      send_event_data_to_other_clients event_name: "scoring-update",
+        payload: JSON.parse(render_to_string(template: 'games/scoring', formats: [:json]))
+
+      respond_to { |format| format.json { render 'games/scoring' } }
+    else
+      render nothing: true
+    end
+  end
+  ####====###
+
 
   def decorated_tiles(player, render_updates_only=true)
     logger.info "-- games#decorated_tiles -- #{player.username} as #{@game.player_color(player)}"

@@ -56,6 +56,11 @@ class Game < ActiveRecord::Base
     end
   end
 
+  def scoring_tiles_to_render
+    scorebot = self.get_scorebot
+    scorebot.changed_tiles
+  end
+
   def player_at_move(move_num)
     white_goes_first = (self.handicap and self.handicap > 0)
     black_goes_first = (not white_goes_first)
@@ -107,6 +112,14 @@ class Game < ActiveRecord::Base
 
   def black_capture_count
     self.captured_count(:black)
+  end
+
+  def black_point_count
+    0
+  end
+
+  def white_point_count
+    0
   end
 
   def opponent(user)
@@ -280,6 +293,15 @@ class Game < ActiveRecord::Base
     end
 
     @rulebook
+  end
+
+  def get_scorebot
+    #if (not @scorebot)
+    #  @scorebot = Scorebot.new(size: self.board_size, board: self.active_board.tiles, key: "game-#{self.id}")
+    #end
+    #@scorebot
+
+    @scorebot ||= Scorebot.new(size: self.board_size, board: self.active_board.tiles, key: "game-#{self.id}")
   end
 
   def played_a_move?(player)

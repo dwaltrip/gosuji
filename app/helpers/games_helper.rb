@@ -1,5 +1,7 @@
 module GamesHelper
 
+  BASE = ActionController::Base.new()
+
   def disable_turn_actions?(game)
     current_user != game.active_player
   end
@@ -33,6 +35,10 @@ module GamesHelper
     end
 
     msg << ": #{game.player_color(game.active_player).capitalize} to play"
+  end
+
+  def scoring_instructions
+    BASE.render_to_string(partial: 'games/notification', locals: { sub_partial: 'games/scoring_instructions' })
   end
 
 end

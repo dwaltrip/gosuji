@@ -254,6 +254,8 @@ feature "gameplay actions" do
     as(players) do
       expect(page).to have_status_message(end_game_scoring: true)
       expect(notification_modal).to have_content(scoring_instructions)
+      expect(notification_modal).to have_button("Ok")
+
       notification_modal.click_button "Ok"
     end
 

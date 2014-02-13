@@ -7,9 +7,9 @@ $(document).ready(function() {
     console.log('$(document).ready handler');
 
     // new move
-    $('#board-table').on('click.new_move', '.tile-container.clickable', function() {
+    $('#board-form').on('click.new_move', '.tile-container.clickable', function() {
         disable_turn_actions();
-        ajax_post_helper(this, { new_move: $(this).data('board-pos') }, update_game);
+        ajax_post_helper(this, { new_move: $(this).data('pos') }, update_game);
     });
 
     // pass turn
@@ -30,6 +30,9 @@ $(document).ready(function() {
         modal.close();
     });
 
+    // for closing notifications
+    $(modal.selector).on('click.ok_button', '.ok-button', function(e) { modal.close(); });
+
     socket = get_socket();
     socket.emit('subscribe-to-updates', { room_id: window.room_id });
 });
@@ -37,31 +40,85 @@ $(document).ready(function() {
 function update_game(data) {
     console.log('-- update_game -- data:', data);
 
-    $('#status-message').text(data.status_message);
-    $('#black-capture-count').text(data.captures.black);
-    $('#white-capture-count').text(data.captures.white);
+    // if both players pass in a row, game is now in scoring mode -- pass data to 'update_scoring'
+    if (hasKey(data, 'just_entered_scoring_phase')) update_scoring(data);
+    else
+    {
+        $('#status-message').text(data.status_message);
+        $('#black-capture-count').text(data.captures.black);
+        $('#white-capture-count').text(data.captures.white);
 
-    // for the now active player, re-enable turn actions (clickable tiles and pass button)
-    if (data.active_player === true) {
-        $('.tile-container.playable').addClass('clickable');
-        $('#pass-button').prop('disabled', false);
+        if (data.active_player === true) enable_turn_actions();
+        if (hasKey(data, 'undo_button_disabled')) $('#undo-button').prop('disabled', data.undo_button_disabled);
+
+        // update necessary tiles. no need to toggle any event listeners, thanks to event delegation
+        for(var i = 0, len = data.tiles.length; i < len; i++) {
+            var tile = data.tiles[i];
+            var $tile = $('#tile-' + tile.pos);
+
+            $tile.removeClass("empty black white playable clickable").addClass(tile.classes);
+            if (hasKey(tile, 'image_src')) $tile.find('.tile-image').attr('src', tile.image_src);
+        }
     }
-    if (hasKey(data, 'undo_button_disabled')) $('#undo-button').prop('disabled', data.undo_button_disabled);
+}
 
-    // update necessary tiles. no need to toggle any event listeners, thanks to event delegation
+function update_scoring(data) {
+    console.log('-- update_scoring -- data:', data);
+
+    if (hasKey(data, 'just_entered_scoring_phase')) setup_scoring(data);
+
+    $('#black-point-count').text(data.points.black);
+    $('#white-point-count').text(data.points.white);
+
     for(var i = 0, len = data.tiles.length; i < len; i++) {
         var tile = data.tiles[i];
         var $tile = $('#tile-' + tile.pos);
 
-        $tile.removeClass("empty black white playable clickable").addClass(tile.classes);
+        $tile.removeClass("dead-stone alive-stone").addClass(tile.classes);
         if (hasKey(tile, 'image_src')) $tile.find('.tile-image').attr('src', tile.image_src);
     }
 }
+
+
+function setup_scoring(data) {
+    var $board_form = $('#board-form');
+    $board_form.attr('action', data.form_action);
+
+    // should also update status message in here
+
+    $board_form.on('click.mark_dead', '.tile-container.alive-stone', function(e) {
+        if (e.ctrlKey) {
+            ajax_post_helper(this, { stone_pos: $(this).data('pos'), action: 'mark-dead' }, update_scoring);
+        }
+    });
+
+    $board_form.on('click.mark_alive', '.tile-container.dead-stone', function(e) {
+        if (e.shiftKey) {
+            ajax_post_helper(this, { stone_pos: $(this).data('pos'), action: 'mark-alive' }, update_scoring);
+        }
+    });
+
+    $('#done-scoring-button').show();
+    $('#done-scoring-form').on('submit.done_scoring', function(e) {
+        e.preventDefault();
+        $('#done-scoring-button').prop('disabled', true);
+        ajax_post_helper(this, null, update_scoring);
+    });
+
+    modal.open({ content: data.instructions });
+    disable_turn_actions();
+}
+
 
 function disable_turn_actions() {
     $('div.tile-container.clickable').removeClass('clickable');
     $('#pass-button').prop('disabled', true);
 }
+function enable_turn_actions() {
+    $('div.tile-container.playable').addClass('clickable');
+    $('#pass-button').prop('disabled', false);
+}
+
 
 function get_socket() {
     console.log('-- sockjs_url: ' + sockjs_url + '\n');
@@ -89,6 +146,11 @@ function get_socket() {
     sockjs.on('undo-request', function(data) {
         console.log("inside sockjs.on('undo-request', cb) callback, data= " + JSON.stringify(data));
         if (!modal.currentlyDisplayed) modal.open({ content: data.approval_form });
+    });
+
+    sockjs.on('scoring-update', function(data) {
+        console.log("inside sockjs.on('scoring-update', cb) callback, data= " + JSON.stringify(data));
+        update_scoring(data);
     });
 
     return sockjs;

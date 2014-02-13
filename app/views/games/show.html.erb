@@ -17,25 +17,32 @@
         <%= hidden_field_tag 'connection_id', @connection_id %>
       <% end %>
 
-      <% if false %>
-        <%= form_tag({ action: :update_scoring }, { id: 'scoring-form', remote: true }) do %>
-          <%= submit_tag 'Done', name: 'done', class: 'button', disabled: !@game.end_game_scoring? %>
-        <% end %>
+
+      <%= form_tag({ action: :done_scoring }, { id: 'done-scoring-form', remote: true }) do %>
+        <% css_classes = ["button", ("hidden" if !@game.end_game_scoring?)] %>
+        <%= submit_tag 'Done', name: 'done', class: css_classes.compact.join(" "), id: "done-scoring-button" %>
       <% end %>
     </div>
 
-    <%= form_tag({ action: :new_move }, { id: 'new-move-form' }) do %>
+    <%= form_tag({ action: :new_move }, { id: 'board-form' }) do %>
       <table id='board-table' class='board-table'>
         <%= render partial: 'games/tile', collection: @tiles %>
       </table>
     <% end %>
   </div>
-
 </div>
 
 <%= javascript_tag do %>
   window.room_id = '<%= @room_id %>';
   window.connection_id = '<%= @connection_id %>';
+
+  <% if @just_entered_scoring_phase %>
+    $(document).ready(function() {
+      modal.open({ content: "<%= j scoring_instructions.html_safe %>" });
+      disable_turn_actions();
+    });
+  <% end %>
 <% end %>
 
 <% javascript 'modal.js', 'games.js', 'event_emitter.js', 'sockjs_client', 'sockjs-0.3.min.js' %>
+

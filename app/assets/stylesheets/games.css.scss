@@ -73,8 +73,13 @@ div#header-container {
     display: inline;
 }
 
-#undo-approval-container {
+#undo-approval-container, #notification-container {
     text-align: center;
+    //position: ;
+}
+
+#notification-container {
+    width: 400px;
 }
 
 .notice-highlight {
@@ -82,8 +87,12 @@ div#header-container {
     font-weight: 900;
 }
 
-.popup-message {
+.modal-message {
     margin-bottom: 10px;
+}
+
+.hidden.button {
+    display: none;
 }
 
 
