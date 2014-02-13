@@ -1,0 +1,300 @@
+-----------
+Definitions
+-----------
+    - Touch (verb)
+        * Two tiles are touching if they are vertical or horizontal neighbors, ie. one tile is directly to the left
+          of the other tile, or directly below (etc). Diagonal connections do not count in the game of go.
+        * Two groups/territories are touching if a stone/tile in one group touches a stone/tile in the other.
+        * We also refer to this concept as 'neighboring' or 'connected'
+    - Connected by (adverb)
+        * Two stone groups are 'connected by' a territory if both groups are touching the territory
+        * This can also be phrased as 'connected through'
+    - Territory (noun)
+        * A set of empty tiles that are connected by vertical and/or horizontal paths
+        * This refers to all empty tiles that are connected to a set of given empty tiles (maximal by definition)
+        * The boundaries of a territory are formed by black and white stones, and the edges of the board
+        * A territory that touches both white and black alive stones is considered neutral (no points for anyone)
+        * If a territory touches alive stones of only a single color, the territory is an eye for those groups,
+          and each tile in the territory counts as a point for that player (tiles with dead stones are 2 points)
+          We also refer to this as a 'surrounded territory'
+
+-----------------
+Task Descriptions
+-----------------
+    1) Construct data structures used in scoring analysis from simple board state (array of values, one per tile)
+    2) Determine initial scoring state (2nd paragraph of user story)
+    3) Determine impact of marking a stone dead/alive
+    4) Store the necessary data as JSON in redis between requests, then fetching and reconstructing the Ruby objects
+
+----------------
+----------------
+Task 1 Algorithm
+----------------
+----------------
+* Description:
+    Construct the data structures used in scoring analysis from the board state (array of values, one per tile)
+
+* Inputs:
+    Tile states for the board, stored in a 1-d array. Ordering is from top left corner,
+    iterating left to right through the rows, moving down to the row immediately below the current row.
+    Thus the first entry in the array is the top left tile, and the last entry is the bottom right tile.
+
+* Desired output (all of it for internal use):
+    - Group data, which consists of:
+        * Set of positions of member stones
+        * Set of positions of liberty tiles
+        * The group color (white or black)
+        * Set of neighboring enemy stone groups (groups with a member stone that touches a stone in this group)
+        * Set of neighboring territories
+    - Territory data
+        * Sets of positions of empty tiles in the territory
+        * Set of neighboring white/black stone groups
+        * Two booleans for whether or not the territory touches any black/white stone groups
+        * Indicator if territory is surrounded by stone groups of a single color
+        * Color of the surrounding groups, if the territory is entirely surrounded by one color
+    - Chain data. A chain consists of all friendly stone groups that are connected by territories and other
+      friendly groups, starting with a given stone group (they are maximal, including all possible groups).
+      Territories that are entirely contained within the chain (they do not touch enemy groups) are called eyes.
+      Territories that touch both black and white chains are neutral space ('dame').
+      The attributes/data for a chain:
+        * Color (white or black)
+        * Set of member groups
+        * Set of surrounded territories
+            - Distinguish between those that are eyes and those that aren't
+        * Set of neighboring neutral territories
+        * Set of neighboring enemy group chains
+        * Flag for dead/alive
+        * Point count
+            - If a chain has two ore more eyes, then the total number of tiles from all surrounded territories
+              (including both eyes and non-eyes) will be the point count. Othwerise, the chain has zero points.
+    - Constant-time lookups storing references to instances of the objects mentioned above
+        * Hash mapping each stone position on board to the group that it is part of
+        * Hash mapping each empty tile position to the territory that it is part of
+        * Hash mapping each stone group to the chain that it is part of
+
+Idea: As we grab the neighbors for each tile, order them from friendly, to empty, to enemy? This
+      should make the group construction logic below easier
+* Steps, Part 1 -- Create group data with the following process:
+    - Iterate through board tile array. For each position, only consider neighbor tiles above and to the left.
+        * If current tile is empty
+            - If either neighbor is an empty tile
+                * Add current pos to the territory the neighbor is part of
+                * If both neighbors are empty tiles, then merge those territories together
+            - If either neighbor is a stone
+                * Add current pos as a liberty to those stone groups
+                * If both neigbhors are stones, create a new territory for current tile
+                * Add current territory as neighboring territory for the stone groups (and vice versa)
+        * Otherwise tile contains a stone
+            - If either neighbor is a friendly stone, add current pos as member to that group
+            - If both are friendly, merge the two stone groups
+            - If either neighbor is an enemy stone, add to set of enemy groups for current group (and vice versa)
+            - If after this, the current stone has not been added to a group (both neighbors are enemy stones, or
+              both are empty tiles), then create a new group for this stone.
+              Process for creating a new group:
+                * Add current stone as member stone
+                * Set color of group to the color of current stone
+            - Lastly, if either neighbor is an empty tile
+                * Add as liberty for current stone group
+                * Add the territory to set of neighboring territories for the stone group
+                * Add the stone group to set of neighboring stone groups for the territory
+        * --- INFORMAL THOUGHT --- Do all updating of neighboring groups/territories in a single additional loop
+          at the end of this step (this should also simplify the above steps)
+          --- During this loop, if either neighbor is an empty tile, the update the has_black_neighbors and
+          has_white_neighbors flags for those territories
+    - How to merge stone groups
+        * Add all member stones from group 2 to group 1
+        * Add all liberties from group 2 to group 1
+        * All neighboring territories and enemy tile groups for group 2 should be added to group 1
+        * Any references to group 2 need to be replaced with group 1
+            - The lookup hash should point to group 1 for each stone from group 2
+            - Neighboring stone groups & territories should have their neighbor sets updated
+    - How to merge territories
+        * Add all member tiles from territory 2 to territory 1
+        * All neighboring stone groups for territory 2 should be added to territory 1's neighboring group sets
+        * Any references to territory 2 need to be replaced with territory 1
+            - The lookup hash should point to territory 1 for each empty tile from territory 2
+            - Neighboring stone groups should have their neighbor sets updated
+            - Combine the has_[color]_neighbors flags (using OR)
+
+* Steps, Part 2 -- Using the data from Part 1, create the chain data:
+    - Setup
+        * First create an empty hash to use as chain lookup (keys are groups, values are chains)
+    - Choose a initial territory to begin the algorithm (doesn't matter which one).
+        * If the territory is surrounded by one color, determine if it is also an eye
+            - If it is size 3 or more, it is an eye
+            - If it is size 2 or 1, then we have to check each directly diagonally tile. Corner territories have a
+              single diagonally adjacent tile, edge territories have 2 diagonally adjacent tiles, and center tiles
+              have 4 diagonally adjacent tiles. If more than 1 of these diagonally adjacent tiles is an enemy stone,
+              the territory is NOT an eye. Otherwise, the territory is an eye for the chain it is surrounded by.
+        * Iterate through all neighboring stone groups
+            - For the first neighboring black stone group we see, create a new chain for that group.
+              ---- IDEA ---- Let new chain class accept a max_depth param for how many levels deep we go with
+              ---- ---- ---- creating new chains for all neighboring groups of any group we add to the chain.
+              Process for creating a new chain (from an initial stone group):
+                * Take the initial group, add to set of member groups for the chain
+                * Iterate through all neighboring stone groups for the initial group (which are enemies, by def)
+                    - If the neighboring group is already in a chain, add it as a neighboring chain
+                    - Otherwise, create a new chain for that group, and then add it as a neighboring chain
+                * Iterate through neighboring territories for the initial group
+                    - Check the surrounded-by-single-color indicator, and add to either the set of neighboring
+                      neutral territories or the set of surrounded territories (eyes)
+                    - If territory is surrounded, increment the point count for the c
+            - For subsequent black groups, add them to the existing black chain.
+                * If they are already in a chain, then merge the two chains
+                  Process for merging two chains:
+                    - Add all member groups from chain 2 to the member group list for chain 1
+                    - Add all neighboring neutral territories from chain 2 as neighboring territories for chain 1
+                    - Add all surrounded territories for chain 2 as surrounded territories for chain 1
+                    - Add all neighboring enemy chains from chain 2 as neighboring enemy territories for chain 1
+                    - Add the point count for chain 2 to the point count for chain 1
+                * With the current group, repeat the process of iterating through neighboring stone groups
+                  and territories that is described above for the initial black stone group
+            - With a new chain, repeat this exact process for any white groups neighboring the initial territory
+        * Add current territory to the territories that have been fully analyzed/processed.
+    - Choose a new territory (shouldn't matter which one)
+        * Iterate through all neighboring stone groups
+            - If the stone group is not in a chain, create a new chain and add as the initial group
+            - If the stone group is already in a chain, merge its chain with the chain of all other friendly
+              stone groups that are neighboring this territory
+        * Add current territory to list of territories that have been analyzed
+    - Repeat for all remaining territories, this should result in a full set of chain data for the board
+
+----------------
+----------------
+Task 2 Algorithm
+----------------
+----------------
+* Description:
+    Determine initial scoring state (2nd paragraph of user story)
+
+* Inputs:
+    - Data structures produced by Task 1
+
+* Desired output:
+    - External:
+        * List of tiles that are part of black territory points
+        * List of tiles that are part of white territory points
+        * Point total for black/white, as determined by initial scoring state (all stone groups alive)
+    - Internal:
+        * Updated chain data with the number of points for each chain
+    # I don't think this next step is necessary, we can just use the existing css classes on the board tiles
+        - List of tiles that have stones on them
+
+* Steps:
+    - Loop through all chains on the board
+        * If a chain has 2 or more eyes, then add all tiles from each territory surrounded by the chain
+          to the list territory  points for the color of the chain
+        * Set the point count for the current chain to equal the number of tiles that we added in the previous step
+    - The point total for white and black is equal to the total number of tiles in each territory point list
+    - That was easy!
+
+----------------
+----------------
+Task 3 Algorithm
+----------------
+----------------
+* Description:
+    Determine impact of marking a stone dead/alive. For this task, we will use the name 'marked_pos' to refer to
+    position of the stone that was marked by the player.
+
+* Inputs:
+    - Data structures produced by Task 1 & Task 2 (internal use outputs)
+
+* Desired output:
+    - List of tiles which are no longer black/white territory
+    - List of tiles which are now black/white territory, as a result of marking the indicated groups as dead
+    - Updated point count for black and for white
+    - Internally:
+        * Updated set of meta-chains. A meta-chain is a collection of chains that should be viewed as a single chain,
+          as the enemy chain previously separating the chains has been marked dead. Meta-chains only exist through
+          dead enemy chains.  The meta-chain is a separate object, with references to its member chains,
+          which remain intact.  This allows the analyzer to easily return to the previous state,
+          if the dead group is later marked alive.
+            - Attributes of a meta-chain:
+                * Set of dead enemy chains contained in the meta-chain
+                * Set of member chains
+                    - Use a hash for this, with the keys being each member chain, and the values being the number of
+                      of dead chains in the meta-chain that they are directly connected to. If a dead chain is marked
+                      alive, then decrement the count for each member chain connected to it. If the count reaches zero,
+                      then remove the chain from the meta-chain (and from this hash).
+                * Map from each dead enemy chain to the set of specific member chains connected by that dead chain.
+                    - 'connected by' in this
+                * Point count, computed by adding the following sub-totals:
+                    - Sum of point counts for all member chains
+                    - Total number of enemy stones from all dead chains. These are 2 points each: one for the dead
+                      stone and one for the tile it rests on.
+                    - Total number of tiles for all surrounded territories of the dead chain.
+                    - Total number of tiles in all "neutral" territories neighboring the dead chains.  Neutral is a
+                      misnomer here, as the chains are dead, and these territories can be viewed as surrounded
+                      territories for the meta-chain (which is why we add them to the point total :)
+        * Constant time lookups
+            - Hash mapping alive chains to the meta-chains they belong to
+            - Hash mapping dead chains to the meta-chains they are contained within
+
+* Steps for marking a stone as dead:
+    - Lookup the group that marked_pos belongs to
+    - Lookup the chain that the group from the previous step belongs to
+        * Set attribute on chain that marks it as dead
+    - Create a new meta-chain
+        * Add the new dead chain to the meta-chain (as a dead chain)
+          Process for adding dead chain to meta-chain:
+            - Loop through all neighboring enemy chains for dead chain, and add to meta-chain as a member chain.
+              Also loop through and add any enemy chains that are neighbors of neighboring neutral territories
+              for the dead chain. If they are already in different meta-chain, see below for how to merge.
+              If it is the same meta-chain, then move to the next enemy group.
+              Process for adding enemy chain to meta-chain:
+                * If chain is marked as dead
+                    - Set chain status as alive
+                    - Lookup the meta-chain that was created by that dead chain, and delete it (Remove all references)
+                * Add to set of member chains (we are using a hash counter -- increment by 1 if present, or set to 1)
+                * Add to set of member chains connected through this specific dead chain
+                * Add point count for chain to meta-chain point count
+            - Iterate through neighboring neutral territories for the dead chain, and increment the meta-chain
+              point total by the size of each territory
+            - Increment meta-chain point total by the size of each surrounded territories for the dead chain
+            - Increment meta-chain point total by the number of stones in the dead chain (2 points per stone)
+            - If any of the chains are already part of a different meta-chain, merge the meta-chains
+              Process for merging meta-chains:
+                * Merge set of dead enemy chains from meta-chain 2 into that of meta-chain 1
+                * Merge sets of member chains from meta-chain 2 into that of meta-chain 1
+                * Merge map from dead enemy chains to connected member chains for meta-chain 2 into meta-chain 1
+                * Add the point counts together for a new total
+
+* Steps for marking a stone as alive:
+    - Lookup the group that marked_pos belongs to
+    - Lookup the chain that the group belongs to. This is a dead chain
+    - Lookup the meta-chain that the dead chain is contained within
+        * Scenario 1: The meta-chain only has a single dead chain (the one that is in the process of becoming alive)
+            - Mark the dead chain as alive
+            - Delete the meta-chain entirely, as it is no longer needed. Remove all relevant lookups/references.
+        * Scenario 2: The meta-chain has at least one other dead-chain. This means it will not be completely discarded.
+            - Remove from this meta-chain's lookup from dead chains to specific connected member chains the entry
+              related to this dead chain (as it is now alive).
+            - Mark this dead chain as alive
+            - Decrement by 1 the hash counter values for the member chains connected through this dead chain.
+                * If their count is now zero, remove them from the meta-chain.
+
+* Steps for determining the updated point count:
+    - Iterate through all meta-chains
+        - Sum up point counts for black/white meta-chains
+    - Iterate through all chains
+        - If chain is not in a meta-chain, then add its point ocunt to the total (for the correct color)
+
+----------------
+----------------
+Task 4 Algorithm
+----------------
+----------------
+* Description:
+
+* Inputs:
+    - Data structures and objects present for scoring analysis after Task 2 or Task 3
+
+* Desired output:
+    - Output of Marshal.dump
+
+* Steps:
+    - Create hash of all scoring analysis data. The hash keys will describe what data is stored in the value.
+    - Just tested Marshal.dump, it is actually quite smart. If the data references an object instance multiple times,
+      it is able to dump and reload these references as a single object. It also saves space in the dumped string.
+      Due to this, I think we can pretty much just dump all relevent data with Marshal.
