@@ -47,8 +47,17 @@ module Scoring
     def initialize(params)
       @size = params[:size]
       @board = params[:board]
+      @manager = ContainerManager.new(board_analyzer: self)
 
       analyze(params[:cached_analysis])
+    end
+
+    def stone_groups
+      @manager.stone_groups
+    end
+
+    def territories
+      @manager.territories
     end
 
     def analyze(cached_analysis=nil)
@@ -61,14 +70,6 @@ module Scoring
           update_container_neighbor_data(pos)
         end
       end
-    end
-
-    def stone_groups
-      StoneGroup.all
-    end
-
-    def territories
-      Territory.all
     end
 
     def add_new_member_to_board_groups(new_pos)
@@ -109,11 +110,11 @@ module Scoring
     end
 
     def find_container(pos)
-      container_type(pos).find_owner(pos)
+      @manager.find_owner(pos)
     end
 
     def has_container?(pos)
-      container_type(pos).has_owner?(pos)
+      @manager.has_owner?(pos)
     end
 
     def find_containers(*positions)
@@ -121,19 +122,11 @@ module Scoring
     end
 
     def create_container(pos)
-      container_type(pos).new(pos, tile_state: tile_state(pos))
+      @manager.create_container(pos, tile_state: tile_state(pos))
     end
 
     def merge_containers(pos1, pos2)
-      container_type(pos1).merge_containers(pos1, pos2)
-    end
-
-    def container_type(pos)
-      if is_empty?(pos)
-        Territory
-      else
-        StoneGroup
-      end
+      @manager.merge_containers(pos1, pos2)
     end
 
     def tiles_positions
@@ -194,114 +187,169 @@ module Scoring
   end
 
 
-  class Container
+  class ContainerManager
 
-    class << self; attr_accessor :instance_count end
-    attr_reader :instance_id, :members
+    def initialize(params)
+      @board_analyzer = params[:board_analyzer]
+      @instance_counts = Hash.new(0)
 
-    def self.inherited(subclass)
-      subclass.instance_count = 0
+      @instances      = Hash.new { |h, k| h[k] = {} }
+      @owners         = Hash.new { |h, k| h[k] = {} }
+      @assimilations  = Hash.new { |h, k| h[k] = {} }
     end
 
-    def initialize(initial_member_key)
-      self.class.instance_count += 1
+    def stone_groups
+      instances(StoneGroup.class_key).values
+    end
 
-      @instance_id = self.class.instance_count
-      self.class.instances[@instance_id] = self
+    def territories
+      instances(Territory.class_key).values
+    end
 
-      # sub-classes of Container all have at least one member
-      add_member_lookup(initial_member_key)
+    def create_container(initial_member_key, params={})
+      params[:manager] = self
+      container_class(initial_member_key).new(initial_member_key, params)
+    end
+
+    def add_container(new_container_instance)
+      class_key = new_container_instance.class_key
+      instance_id = (@instance_counts[class_key] += 1)
+      instances(class_key)[instance_id] = new_container_instance
+      instance_id
+    end
+
+    def remove_container(doomed_instance)
+      instances(doomed_instance.class_key).delete(doomed_instance.instance_id)
+    end
+
+    def add_member_lookup(member_key, container_instance)
+      owners(container_instance.class_key)[member_key] = container_instance.instance_id
+    end
+
+    def instances(class_key)
+      @instances[class_key]
+    end
+
+    def owners(class_key)
+      @owners[class_key]
+    end
+
+    # whenever two groups merge, one assimilates the other
+    # we redirect the old id to the assmimilator's id, so member lookups will return correct container instance
+    def assimilations(class_key)
+      @assimilations[class_key]
+    end
+
+    def has_owner?(member_key)
+      class_key = container_class(member_key).class_key
+      owners(class_key).key?(member_key)
+    end
+
+    def find_owner(member_key)
+      class_key = container_class(member_key).class_key
+      owner_id = owners(class_key)[member_key]
+      fetch_inst_or_assimilator_inst(owner_id, class_key)
+    end
+
+    def fetch_inst_or_assimilator_inst(instance_id, class_key)
+      assimilator_id = instance_id
+      _assimilations = assimilations(class_key)
+
+      if _assimilations.key?(assimilator_id)
+        # this loop might not be necessary, we might be able to handle it whenever a merge occurs
+        # there might have been several assimilations (merges), loop through to get the most recent one
+        assimilator_id = _assimilations[assimilator_id] while _assimilations.key?(assimilator_id)
+
+        # update hash so original instance_id points directly to the instance_id of the most recent assimilator
+        _assimilations[instance_id] = assimilator_id
+      end
+
+      instances(class_key)[assimilator_id]
+    end
+
+    def merge_containers(member_key1, member_key2)
+      smaller, larger = order_by_size(find_owner(member_key1), find_owner(member_key2))
+      class_key = smaller.class_key
+
+      # dont merge if they are the same
+      unless smaller.instance_id == larger.instance_id
+        assimilations(class_key)[smaller.instance_id] = larger.instance_id
+
+        larger.add_members(smaller.members)
+        update_neighbors_during_merge(larger, smaller)
+
+        larger.assimilate(smaller)
+        remove_container(smaller)
+      end
+    end
+
+    def order_by_size(*containers)
+      containers.sort { |a,b| a.size <=> b.size }
+    end
+
+    # does this belong here in the manager class??
+    def update_neighbors_during_merge(assimilator, assimilated)
+      assimilated.all_neighbor_types.each do |type, set_of_neighbors|
+        set_of_neighbors.each { |neighbor| neighbor.replace_neighbor(assimilated, assimilator) }
+        assimilator.neighbors_of_type(type).merge(set_of_neighbors)
+      end
+    end
+
+    def container_class(member_key)
+      if member_key.class == Fixnum
+        if @board_analyzer.is_empty?(member_key)
+          Territory
+        else
+          StoneGroup
+        end
+      end
+    end
+
+    def print_data
+      Rails.logger.info "\n===== ContainerManager.print_data ===== START\n"
+      [:@instances, :@owners, :@assimilations].each do |var_name|
+        Rails.logger.info "=== #{var_name} ==="
+        instance_variable_get(var_name).each do |inst_type, inst_hash|
+          Rails.logger.info "--- inst_type: #{inst_type} ---"
+          inst_hash.each do |inst_id, inst|
+            Rails.logger.info "  #{inst_id} => #{inst.inspect}"
+          end
+        end
+      end
+      Rails.logger.info "===== ContainerManager.print_data ===== END\n"
+    end
+  end
+
+
+  class Container
+    attr_reader :instance_id, :members
+
+    def self.class_key
+      self.to_s.to_sym
+    end
+
+    def class_key
+      self.class.class_key
+    end
+
+    def initialize(initial_member_key, params={})
+      @manager = params[:manager]
+      @instance_id = @manager.add_container(self)
+      @manager.add_member_lookup(initial_member_key, self)
     end
 
     # sub-classes should create a '@members' Set
     def add_member(new_member)
       @members.add(new_member)
-      add_member_lookup(new_member)
+      @manager.add_member_lookup(new_member, self)
     end
 
     def add_members(new_members)
       @members.merge(new_members)
     end
 
-    def add_member_lookup(key)
-      self.class.owners[key] = @instance_id
-    end
-
     def size
       @members.size
-    end
-
-    def self.all
-      @instances.values
-    end
-
-    def self.instances
-      @instances ||= {}
-    end
-
-    def self.owners
-      @owners ||= {}
-    end
-
-    # when two groups merge, one assimilates the other. this hash redirects the old id to the assmimilator's id
-    def self.assimilations
-      @assimilations ||= {}
-    end
-
-    def self.has_owner?(member_key)
-      owners.key?(member_key)
-    end
-
-    def self.find_owner(member_key)
-      owner_id = owners[member_key]
-      fetch_inst_or_assimilator_inst(owner_id)
-    end
-
-    def self.fetch_inst_or_assimilator_inst(instance_id)
-      assimilator_id = instance_id
-
-      if assimilations.key?(assimilator_id)
-
-        # there might be a way to avoid this loop, by smart updating when merging containers. not sure.
-        # there might have been several assimilations, loop through to get the most recent one
-        while assimilations.key?(assimilator_id)
-          assimilator_id = assimilations[assimilator_id]
-        end
-
-        # update hash so original instance_id points directly to the
-        # instance_id of the most recent assimilator
-        assimilations[instance_id] = assimilator_id
-      end
-
-      instances[assimilator_id]
-    end
-
-    def self.merge_containers(member_key1, member_key2)
-      smaller, larger = order_by_size(find_owner(member_key1), find_owner(member_key2))
-
-      # dont merge if they are the same
-      unless smaller.instance_id == larger.instance_id
-        assimilations[smaller.instance_id] = larger.instance_id
-
-        larger.add_members(smaller.members)
-        update_neighbors_during_merge(larger, smaller)
-
-        larger.assimilate(smaller)
-
-        # this should remove the last reference to this instance, so it can be GC'ed
-        instances.delete(smaller.instance_id)
-      end
-    end
-
-    def self.order_by_size(*containers)
-      containers.sort { |a,b| a.size <=> b.size }
-    end
-
-    def self.update_neighbors_during_merge(assimilator, assimilated)
-      assimilated.all_neighbor_types.each do |type, set_of_neighbors|
-        set_of_neighbors.each { |neighbor| neighbor.replace_neighbor(assimilated, assimilator) }
-        assimilator.neighbors_of_type(type).merge(set_of_neighbors)
-      end
     end
 
     # sub-classes need to have a '@neighbors' hash. keys: container type, valus: set of container instances
@@ -336,17 +384,14 @@ module Scoring
     end
 
     def inspect(params = {})
-      skip = params.fetch(:skip, [:@neighbors]) # skip printing neighbors by default (or else recursion death)
-      skip << :@instance_tracker
-      inspection = "#<#{self.class}:0x%x %%s>" % (object_id * 2)
+      # dont print @neighbors by default, makes the output easier to read. never print @manager
+      skip = params.fetch(:skip, [:@neighbors]).concat([:@manager])
 
       inspected_vars = instance_variables.map do |var|
-        unless skip.include?(var)
-          "#{var}=#{instance_variable_get(var).inspect}"
-        end
+        "#{var}=#{instance_variable_get(var).inspect}" unless skip.include?(var)
       end
 
-      inspection % inspected_vars.compact.join(", ")
+      "#<#{self.class}:0x%x %s>" % [object_id * 2, inspected_vars.compact.join(", ")]
     end
   end
 
@@ -354,14 +399,14 @@ module Scoring
   class Territory < Container
 
     def initialize(initial_tile_pos, params={})
-      super(initial_tile_pos)
-
       @members = Set.new([initial_tile_pos])
       @neighbors = { black_groups: Set.new, white_groups: Set.new }
+
+      super
     end
 
     def tiles
-      members
+      @members
     end
 
     def neighboring_black_groups
@@ -385,16 +430,16 @@ module Scoring
     attr_reader :color, :liberties
 
     def initialize(initial_stone_pos, params={})
-      super(initial_stone_pos)
-
       @members = Set.new([initial_stone_pos])
       @liberties = Set.new
       @color = params[:tile_state]
       @neighbors = { enemy_groups: Set.new, territories: Set.new }
+
+      super
     end
 
     def stones
-      members
+      @members
     end
 
     def add_liberty(tile_pos)
@@ -426,6 +471,5 @@ module Scoring
     end
 
   end
-
 
 end
