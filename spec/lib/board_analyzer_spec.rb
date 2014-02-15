@@ -37,7 +37,7 @@ end
 
 describe Scoring::BoardAnalyzer do
 
-  describe '.analyze' do
+  describe ".analyze" do
 
     # this example was copied from rulebook spec
     # it also now tests territories, and neighboring groups/territories
@@ -182,15 +182,13 @@ describe Scoring::BoardAnalyzer do
           actual_territory = board_analyzer.find_container(expected_territory.tiles.to_a[0])
 
           [:black, :white].each do |color|
-            method_name = "neighboring_#{color}_groups".to_sym
+            expect(actual_territory.neighboring_groups(color).size).to eq(expected_territory.neighbors[color].size)
 
-            expect(actual_territory.send(method_name).size).to eq(expected_territory.neighbors[color].size)
             expected_territory.neighbors[color].each do |neighboring_group_num|
-
               neighboring_group_first_stone_pos = expected_groups[neighboring_group_num].stones.to_a[0]
               expected_actual_neighboring_group = board_analyzer.find_container(neighboring_group_first_stone_pos)
 
-              expect(actual_territory.send(method_name)).to include(expected_actual_neighboring_group)
+              expect(actual_territory.neighboring_groups(color)).to include(expected_actual_neighboring_group)
               expect(expected_actual_neighboring_group.neighboring_territories).to include(actual_territory)
             end
           end
@@ -200,6 +198,237 @@ describe Scoring::BoardAnalyzer do
     end
   end
 
-end
+  describe ".diagonally_neighboring_tiles returns correct tile positions when evaluating" do
+    Example = Struct.new(:description, :board_rows, :tiles)
 
+    examples = {
+      Example.new("size 1 territory, in center", [
+        '|_|b|_|',
+        '|b|_|b|',
+        '|_|b|_|'], [4]) => [0, 2, 6, 8],
+      Example.new("size 1 territory, on edge", [
+        '|_|b|b|',
+        '|_|b|_|',
+        '|_|b|b|'], [5]) => [1, 7],
+      Example.new("size 1 territory, in corner", [
+        '|_|_|_|',
+        '|b|_|_|',
+        '|_|b|b|'], [6]) => [4],
+      Example.new("size 2 territory, in center, vertically aligned", [
+        '|_|_|b|_|',
+        '|_|b|_|b|',
+        '|_|b|_|b|',
+        '|_|_|b|_|'], [6, 10]) => [1, 3, 13, 15],
+      Example.new("size 2 territory, in center, horizontally aligned", [
+        '|_|_|_|_|',
+        '|_|b|b|b|',
+        '|b|_|_|b|',
+        '|_|b|b|_|'], [9, 10]) => [4, 7, 12, 15],
+      Example.new("size 2 territory, on edge, perpendicular to edge", [
+        '|_|b|_|b|',
+        '|_|b|_|b|',
+        '|_|_|b|_|',
+        '|_|_|_|_|'], [2, 6]) => [9, 11],
+      Example.new("size 2 territory, on edge, parallel to edge", [
+        '|_|b|_|_|b|',
+        '|_|b|b|b|b|',
+        '|_|_|_|_|_|',
+        '|_|_|_|_|_|',
+        '|_|_|_|_|_|'], [2, 3]) => [6, 9],
+      Example.new("size 2 territory, in corner, vertically aligned", [
+        '|_|b|_|_|_|',
+        '|_|b|_|_|_|',
+        '|b|_|_|_|_|',
+        '|_|_|_|_|_|',
+        '|_|_|_|_|_|'], [0, 5]) => [11],
+      Example.new("size 2 territory, in corner, horizontally aligned", [
+        '|_|_|_|_|_|',
+        '|_|_|_|_|_|',
+        '|_|_|_|_|_|',
+        '|b|b|_|_|_|',
+        '|_|_|b|_|_|'], [20, 21]) => [17]
+    }
+
+    examples.each do |example, expected_diagonals|
+      it example.description do
+        board_analyzer = build_board_analyzer(example.board_rows)
+        expect(board_analyzer.diagonally_neighboring_tiles(example.tiles).sort).to eq(expected_diagonals.sort)
+      end
+    end
+  end
+
+
+  describe '.determine_and_set_eye_status' do
+    Context = Struct.new(:description, :sub_contexts)
+    SubContext = Struct.new(:description, :examples)
+    Example = Struct.new(:description, :board_rows, :territory_pos, :expected_to_be_eye)
+
+    example_groups = [
+      Context.new("size 1 territory", [
+
+        SubContext.new("in corner", [
+          Example.new("with 1 out of 1 digaonals occupied by enemy stones", [
+            '|_|b|_|',
+            '|_|w|b|',
+            '|_|_|_|'], 2, false),
+          Example.new("with 0 out of 1 digaonals occupied by enemy stones", [
+            '|_|b|_|',
+            '|b|b|_|',
+            '|_|_|_|'], 0, true)
+        ]),
+        SubContext.new("on edge", [
+          Example.new("with 2 out of 2 digaonals occupied by enemy stones", [
+            '|b|_|_|_|',
+            '|b|w|w|_|',
+            '|_|b|_|_|',
+            '|b|w|w|_|'], 8, false),
+          Example.new("with 1 out of 2 digaonals occupied by enemy stones", [
+            '|_|_|_|b|',
+            '|_|_|b|_|',
+            '|_|w|w|b|',
+            '|_|_|_|b|'], 7, false),
+          Example.new("with 0 out of 2 digaonals occupied by enemy stones", [
+            '|_|b|_|b|',
+            '|_|b|b|b|',
+            '|_|_|_|_|',
+            '|_|_|_|_|'], 2, true)
+        ]),
+        SubContext.new("in center", [
+          Example.new("with 4 out of 4 digaonals occupied by enemy stones", [
+            '|_|_|_|_|_|',
+            '|_|w|b|w|_|',
+            '|_|b|_|b|_|',
+            '|_|w|b|w|_|',
+            '|_|_|_|_|_|'], 12, false),
+          Example.new("with 3 out of 4 digaonals occupied by enemy stones", [
+            '|_|b|_|w|_|',
+            '|b|b|w|w|w|',
+            '|b|_|b|b|_|',
+            '|w|b|w|w|w|',
+            '|w|w|w|_|_|'], 11, false),
+          Example.new("with 2 out of 4 digaonals occupied by enemy stones", [
+            '|_|_|_|b|_|',
+            '|_|_|_|b|_|',
+            '|_|w|w|b|_|',
+            '|_|w|b|_|b|',
+            '|_|w|w|b|_|'], 18, false),
+          Example.new("with 1 out of 4 digaonals occupied by enemy stones", [
+            '|_|w|w|b|_|',
+            '|w|w|b|_|b|',
+            '|_|_|b|b|b|',
+            '|w|w|w|b|_|',
+            '|_|_|w|b|_|'], 8, true),
+          Example.new("with 0 out of 4 digaonals occupied by enemy stones", [
+            '|_|w|b|b|_|',
+            '|w|w|b|_|b|',
+            '|_|_|_|b|_|',
+            '|w|w|w|b|_|',
+            '|_|_|w|b|_|'], 8, true),
+        ])
+      ]),
+
+      Context.new("size 2 territory", [
+
+        SubContext.new("in corner", [
+          Example.new("with 1 out of 1 digaonals occupied by enemy stones", [
+            '|_|_|b|_|',
+            '|b|b|w|_|',
+            '|b|_|w|_|',
+            '|_|_|_|_|'], 0, true),
+          Example.new("with 1 out of 1 digaonals occupied by enemy stones", [
+            '|_|_|_|_|',
+            '|b|_|_|_|',
+            '|b|_|_|_|',
+            '|_|b|b|_|'], 12, true)
+        ]),
+        SubContext.new("on edge, perpendicular to edge", [
+          Example.new("with 2 out of 2 digaonals occupied by enemy stones", [
+            '|_|b|_|b|',
+            '|_|b|_|b|',
+            '|w|w|b|w|',
+            '|_|_|b|_|'], 2, true),
+          Example.new("with 1 out of 2 digaonals occupied by enemy stones", [
+            '|_|w|_|_|',
+            '|w|w|b|b|',
+            '|_|b|_|_|',
+            '|_|_|b|b|'], 10, true),
+        ]),
+        SubContext.new("on edge, parallel to edge", [
+          Example.new("with 2 out of 2 digaonals occupied by enemy stones", [
+            '|_|b|_|_|b|',
+            '|_|w|b|b|w|',
+            '|_|w|_|_|w|',
+            '|_|w|_|w|w|',
+            '|_|_|_|_|_|'], 3, false),
+          Example.new("with 1 out of 2 digaonals occupied by enemy stones", [
+            '|_|b|_|_|b|',
+            '|_|w|b|b|_|',
+            '|_|w|_|_|_|',
+            '|_|w|_|_|_|',
+            '|_|_|_|_|_|'], 3, true),
+          Example.new("with 0 out of 2 digaonals occupied by enemy stones", [
+            '|b|_|_|_|',
+            '|_|b|_|_|',
+            '|_|b|_|_|',
+            '|b|b|_|_|'], 8, true)
+        ]),
+        SubContext.new("in center", [
+          Example.new("with 4 out of 4 digaonals occupied by enemy stones", [
+            '|w|w|w|w|_|',
+            '|w|b|b|w|w|',
+            '|b|_|_|b|_|',
+            '|w|b|b|w|_|',
+            '|w|_|_|w|_|'], 12, false),
+          Example.new("with 3 out of 4 digaonals occupied by enemy stones", [
+            '|_|w|_|w|_|',
+            '|w|w|b|w|w|',
+            '|_|b|_|b|w|',
+            '|_|b|_|b|w|',
+            '|_|_|b|w|w|'], 17, true),
+          Example.new("with 2 out of 4 digaonals occupied by enemy stones", [
+            '|_|_|_|_|_|',
+            '|w|w|w|w|_|',
+            '|w|b|b|w|_|',
+            '|b|_|_|b|_|',
+            '|b|b|b|_|_|'], 16, true),
+          Example.new("with 1 out of 4 digaonals occupied by enemy stones", [
+            '|_|w|b|b|_|',
+            '|w|w|b|_|b|',
+            '|_|_|b|_|b|',
+            '|w|w|_|b|w|',
+            '|_|w|w|w|w|'], 8, true)
+        ])
+      ])
+    ]
+
+    # static structure: array of contexts -> array of sub-contexts -> array of examples
+    example_groups.each do |current_context|
+      context "sets eye status of #{current_context.description}" do
+
+        current_context.sub_contexts.each do |sub_context|
+          context sub_context.description do
+
+            sub_context.examples.each do |example|
+              eye_status = "%s, %s an eye" % [
+                example.expected_to_be_eye.to_s.upcase,
+                (("is" if example.expected_to_be_eye) || "NOT")
+              ]
+
+              it "#{example.description} as: #{eye_status}" do
+                board_analyzer = build_board_analyzer(example.board_rows)
+                territory = board_analyzer.find_container(example.territory_pos)
+                board_analyzer.determine_and_set_eye_status(territory)
+
+                expect(territory.is_eye?).to eq(example.expected_to_be_eye)
+              end
+            end
+
+          end
+        end
+
+      end
+    end
+
+  end
+end
 

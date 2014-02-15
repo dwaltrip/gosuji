@@ -65,10 +65,22 @@ module Scoring
         # read data and populate objects - hah!
 
       else
-        tiles_positions.each do |pos|
-          add_new_member_to_board_groups(pos)
-          update_container_neighbor_data(pos)
-        end
+        build_stone_groups_and_territories
+        #build_stone_group_chains
+      end
+    end
+
+    def build_stone_groups_and_territories
+      tiles_positions.each do |pos|
+        add_new_member_to_board_groups(pos)
+        update_container_neighbor_data(pos)
+      end
+    end
+
+    def build_stone_group_chains
+      territories.each do |territory|
+        determine_and_set_eye_status(territory)
+
       end
     end
 
@@ -149,9 +161,8 @@ module Scoring
       @board[pos]
     end
 
-    # as we scan board and construct data structures for score analysis,
-    # we only look up at neighbors above and to the left of each tile which,
-    # due to the iteration pattern (from top left to bottom right), have already been processed
+    # as we scan board and construct data structures for score analysis, only use neighbors above & to the left
+    # of each tile. due to iteration pattern (from top left to bottom right), these have already been processed
     def already_processed_neighboring_tiles(pos)
       _neighbors = []
 
@@ -184,6 +195,95 @@ module Scoring
 
       _neighbors
     end
+
+    def determine_and_set_eye_status(territory)
+      is_eye = false
+
+      if territory.surrounded?
+        if territory.size > 2
+          is_eye = true
+
+        else
+          diagonals = diagonally_neighboring_tiles(territory.tiles)
+          empty_diagonal_count = diagonals.select { |tile| is_empty?(tile) }.size
+
+          # this is quite close to saying 'can we connect the neighboring groups with the empty diagonals?'
+          if (territory.neighbor_count - empty_diagonal_count) <= territory.size
+            is_eye = true
+
+          elsif territory.size == 2
+            is_eye = is_one_of_the_tiles_an_eye_if_we_pretend_other_tile_is_a_friendly_stone?(territory)
+          end
+        end
+      end
+
+      territory.set_eye_status(is_eye)
+    end
+
+    def is_one_of_the_tiles_an_eye_if_we_pretend_other_tile_is_a_friendly_stone?(territory)
+      answer = false
+      territory.tiles.each do |tile|
+        other_tile = territory.tiles.dup.delete(tile).to_a.pop
+
+        neighbors_not_connected_by_tile =
+          territory.neighbors.reject { |group| group.has_liberty?(tile) }
+
+        pseudo_neighbor_count = 1 + neighbors_not_connected_by_tile.size
+        pseudo_diagonals = diagonally_neighboring_tiles(other_tile)
+        pseudo_empty_diagonal_count = pseudo_diagonals.select { |tile| is_empty?(tile) }.size
+
+        answer = true if (pseudo_neighbor_count - pseudo_empty_diagonal_count) <= 1
+      end
+      answer
+    end
+
+    # this gives tile positions of diagonal neighbors
+    def diagonally_neighboring_tiles(tiles)
+      tiles = [tiles] if tiles.class == Fixnum
+
+      if tiles.size == 1
+        diagonals_for_tile(tiles.to_a[0], all: true)
+
+      elsif tiles.size == 2
+        closer_to_top_left, closer_to_bot_right = tiles.sort
+
+        # vertically aligned
+        if closer_to_bot_right - closer_to_top_left == @size
+          diagonals_for_tile(closer_to_top_left,  top_left: true, top_right: true).concat(
+          diagonals_for_tile(closer_to_bot_right, bot_left: true, bot_right: true))
+
+        # horizontally aligned
+        else
+          diagonals_for_tile(closer_to_top_left,  top_left: true,   bot_left: true).concat(
+          diagonals_for_tile(closer_to_bot_right, top_right: true,  bot_right: true))
+        end
+      end
+    end
+
+    def diagonals_for_tile(pos, corners = {})
+      not_on_left_edge  = (pos % @size != 0)
+      not_on_right_edge = ((pos + 1) % @size != 0)
+      not_on_top_edge   = (pos - @size >= 0)
+      not_on_bot_edge   = (pos + @size < @size**2)
+
+      diagonals = []
+
+      if (corners[:top_left] || corners[:all])  && not_on_top_edge && not_on_left_edge
+        diagonals << pos - (@size + 1)
+      end
+      if (corners[:top_right] || corners[:all]) && not_on_top_edge && not_on_right_edge
+        diagonals << pos - (@size - 1)
+      end
+      if (corners[:bot_left] || corners[:all])  && not_on_bot_edge && not_on_left_edge
+        diagonals << pos + (@size - 1)
+      end
+      if (corners[:bot_right] || corners[:all]) && not_on_bot_edge && not_on_right_edge
+        diagonals << pos + (@size + 1)
+      end
+
+      diagonals
+    end
+
   end
 
 
@@ -248,10 +348,10 @@ module Scoring
     def find_owner(member_key)
       class_key = container_class(member_key).class_key
       owner_id = owners(class_key)[member_key]
-      fetch_inst_or_assimilator_inst(owner_id, class_key)
+      fetch_instance_or_assimilator_instance(owner_id, class_key)
     end
 
-    def fetch_inst_or_assimilator_inst(instance_id, class_key)
+    def fetch_instance_or_assimilator_instance(instance_id, class_key)
       assimilator_id = instance_id
       _assimilations = assimilations(class_key)
 
@@ -302,6 +402,12 @@ module Scoring
         else
           StoneGroup
         end
+
+      elsif member_key.class == StoneGroup
+        Chain
+
+      elsif member_key.class == Chain
+        MetaChain
       end
     end
 
@@ -397,10 +503,9 @@ module Scoring
 
 
   class Territory < Container
-
     def initialize(initial_tile_pos, params={})
       @members = Set.new([initial_tile_pos])
-      @neighbors = { black_groups: Set.new, white_groups: Set.new }
+      @neighbors = { black: Set.new, white: Set.new }
 
       super
     end
@@ -409,20 +514,44 @@ module Scoring
       @members
     end
 
-    def neighboring_black_groups
-      @neighbors[:black_groups]
+    def surrounded?
+      (@neighbors[:black].size == 0) || (@neighbors[:white].size == 0)
     end
 
-    def neighboring_white_groups
-      @neighbors[:white_groups]
+    def surrounding_color
+      if @neighbors[:white].size == 0
+        :black
+      elsif @neighbors[:black].size == 0
+        :white
+      end
+    end
+
+    def neighboring_groups(color)
+      @neighbors[color]
+    end
+
+    def neighbors
+      @neighbors[:black].union(@neighbors[:white])
+    end
+
+    def neighbor_count
+      @neighbors[:black].size + @neighbors[:white].size
     end
 
     def neighbor_type(stone_group)
       if stone_group.color == BLACK
-        :black_groups
+        :black
       elsif stone_group.color == WHITE
-        :white_groups
+        :white
       end
+    end
+
+    def is_eye?
+      @is_eye
+    end
+
+    def set_eye_status(is_eye)
+      @is_eye = is_eye
     end
   end
 
@@ -446,6 +575,10 @@ module Scoring
       liberties.add(tile_pos)
     end
 
+    def has_liberty?(tile_pos)
+      liberties.include?(tile_pos)
+    end
+
     def assimilate(other_group)
       @liberties.merge(other_group.liberties)
     end
@@ -465,9 +598,26 @@ module Scoring
 
 
   class Chain
-    def initialize(params)
+    def initialize(initial_stone_group, params={})
+      @members = Set.new([initial_stone_group])
+      @color = initial_stone_group.color
+      @point_count = 0
+      @neighbors = { enemy_chains: Set.new, territories: Set.new }
+
+      super
+    end
+
+  end
+
+  class MetaChain
+    def initialize(initial_chain, params={})
       @color = params[:color]
-      @groups = Set.new
+
+      @dead_chains = {}
+      @alive_chains = Hash.new(0)
+      @point_count = 0
+
+      super
     end
 
   end
