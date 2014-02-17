@@ -60,35 +60,71 @@ module Scoring
       @manager.territories
     end
 
+    def chains
+      @manager.chains
+    end
+
+    def territory_counts
+      counts = Hash.new(0)
+      chains.each { |chain| counts[chain.color] += chain.surrounded_tile_count if chain.alive? }
+      counts
+    end
+
     def analyze(cached_analysis=nil)
       if cached_analysis
         # read data and populate objects - hah!
 
       else
         build_stone_groups_and_territories
-        #build_stone_group_chains
+        combine_stone_groups_into_chains
       end
     end
 
     def build_stone_groups_and_territories
       tiles_positions.each do |pos|
-        add_new_member_to_board_groups(pos)
+        add_new_tile_to_board_containers(pos)
         update_container_neighbor_data(pos)
       end
     end
 
-    def build_stone_group_chains
+    def combine_stone_groups_into_chains
       territories.each do |territory|
         determine_and_set_eye_status(territory)
+        neighboring_chains = {}
 
+        territory.neighbors.each do |group|
+          current_chain = neighboring_chains[group.color]
+
+          if has_container?(group)
+            merge_containers(find_container(group), current_chain) if current_chain
+            neighboring_chains[group.color] = find_container(group)
+
+          else
+            if current_chain
+              current_chain.add_member(group)
+            else
+              neighboring_chains[group.color] = create_container(group)
+            end
+          end
+
+          group.neighboring_enemy_groups.each do |neighbor_group|
+            create_container(neighbor_group) unless has_container?(neighbor_group)
+            neighboring_enemy_chain = find_container(neighbor_group)
+
+            neighboring_chains[group.color].add_enemy_neighbor(neighboring_enemy_chain)
+            neighboring_enemy_chain.add_enemy_neighbor(neighboring_chains[group.color])
+          end
+        end
+
+        neighboring_chains.each { |color, chain| chain.add_territory_neighbor(territory) }
       end
     end
 
-    def add_new_member_to_board_groups(new_pos)
+    def add_new_tile_to_board_containers(new_pos)
       already_processed_neighboring_tiles(new_pos).each do |neighbor_pos|
         if same_tile_types(new_pos, neighbor_pos)
           if has_container?(new_pos)
-            merge_containers(new_pos, neighbor_pos)
+            merge_containers(find_container(new_pos), find_container(neighbor_pos))
           else
             find_container(neighbor_pos).add_member(new_pos)
           end
@@ -96,10 +132,10 @@ module Scoring
       end
 
       # if neighbors are not of same type, create new group
-      create_container(new_pos) unless has_container?(new_pos)
+      create_container(new_pos, tile_state: tile_state(new_pos)) unless has_container?(new_pos)
     end
 
-    # the writing of this method was when i started mixing the term 'group' with 'container'
+    # the writing of this method was when I started mixing the term 'group' with 'container'
     # sigh.. naming things is a pain the ass. can't decide what term is best
     def update_container_neighbor_data(pos)
       group = find_container(pos)
@@ -121,24 +157,24 @@ module Scoring
       end
     end
 
-    def find_container(pos)
-      @manager.find_owner(pos)
+    def find_container(member_key)
+      @manager.find_owner(member_key)
     end
 
-    def has_container?(pos)
-      @manager.has_owner?(pos)
+    def has_container?(member_key)
+      @manager.has_owner?(member_key)
     end
 
-    def find_containers(*positions)
-      positions.map { |pos| find_container(pos) }
+    def find_containers(*member_keys)
+      member_keys.map { |member_key| find_container(member_key) }
     end
 
-    def create_container(pos)
-      @manager.create_container(pos, tile_state: tile_state(pos))
+    def create_container(member_key, params={})
+      @manager.create_container(member_key, params)
     end
 
-    def merge_containers(pos1, pos2)
-      @manager.merge_containers(pos1, pos2)
+    def merge_containers(container1, container2)
+      @manager.merge_containers(container1, container2)
     end
 
     def tiles_positions
@@ -283,7 +319,6 @@ module Scoring
 
       diagonals
     end
-
   end
 
 
@@ -304,6 +339,10 @@ module Scoring
 
     def territories
       instances(Territory.class_key).values
+    end
+
+    def chains
+      instances(Chain.class_key).values
     end
 
     def create_container(initial_member_key, params={})
@@ -367,8 +406,8 @@ module Scoring
       instances(class_key)[assimilator_id]
     end
 
-    def merge_containers(member_key1, member_key2)
-      smaller, larger = order_by_size(find_owner(member_key1), find_owner(member_key2))
+    def merge_containers(container1, container2)
+      smaller, larger = order_by_size(container1, container2)
       class_key = smaller.class_key
 
       # dont merge if they are the same
@@ -473,8 +512,10 @@ module Scoring
     end
 
     def replace_neighbor(old_neighbor, new_neighbor)
-      remove_neighbor(old_neighbor)
-      add_neighbor(new_neighbor)
+      if remove_neighbor(old_neighbor)
+        # only add new_neighbor if old_neighbor was already a neighbor
+        add_neighbor(new_neighbor)
+      end
     end
 
     # these two methods 'add_neighbor' and 'remove_neighbor' expect base classes to have a '@neighbors' hash
@@ -486,7 +527,7 @@ module Scoring
 
     def remove_neighbor(neighboring_container)
       type = neighbor_type(neighboring_container)
-      @neighbors[type].delete(neighboring_container)
+      (true if @neighbors[type].delete?(neighboring_container)) || false
     end
 
     def inspect(params = {})
@@ -597,19 +638,105 @@ module Scoring
   end
 
 
-  class Chain
+  class Chain < Container
+    attr_reader :color, :eyes, :surrounded_tile_count
+
     def initialize(initial_stone_group, params={})
       @members = Set.new([initial_stone_group])
       @color = initial_stone_group.color
-      @point_count = 0
-      @neighbors = { enemy_chains: Set.new, territories: Set.new }
+      @surrounded_tile_count = 0
+      @eyes = {}
+      @neighbors = { enemy_chains: Set.new, surrounded_territories: Set.new, neutral_territories: Set.new }
 
       super
     end
 
+    def groups
+      @members
+    end
+
+    def alive?
+      @eyes.size >= 2
+    end
+
+    def assimilate(other_chain)
+      @eyes.update(other_chain.eyes)
+      @surrounded_tile_count += other_chain.surrounded_tile_count
+    end
+
+    def add_territory_neighbor(territory)
+      if territory.surrounded?
+        @neighbors[:surrounded_territories].add(territory)
+        @surrounded_tile_count += territory.size
+      else
+        @neighbors[:neutral_territories].add(territory)
+      end
+
+      @eyes[territory] = true if territory.is_eye?
+    end
+
+    def add_enemy_neighbor(enemy_chain)
+      @neighbors[:enemy_chains].add(enemy_chain)
+    end
+
+    def neighboring_enemy_chains
+      @neighbors[:enemy_chains]
+    end
+
+    def surrounded_territories
+      @neighbors[:surrounded_territories]
+    end
+
+    def neutral_territories
+      @neighbors[:neutral_territories]
+    end
+
+    def territory_points
+      if alive?
+        @surrounded_tile_count
+      else
+        0
+      end
+    end
+
+    def has_eye?(territory)
+      @eyes[territory]
+    end
+
+    def neighbor_type(neighboring_container)
+      if neighboring_container.class == Territory
+        if neighboring_container.surrounded?
+          :surrounded_territories
+        else
+          :neutral_territories
+        end
+      elsif neighboring_container.color != @color
+        :enemy_chains
+      end
+    end
+
+    # invaluable for debugging
+    def print_instance_data
+      all_stones = groups.inject(Set.new) { |memo, g| memo.merge(g.stones) }.to_a.sort
+      all_groups = groups.map { |g| [g.instance_id, g.stones.to_a.sort] }
+      Rails.logger.info "\n==== chain #{@instance_id} -- stones: #{all_stones.inspect}"
+      Rails.logger.info "==== groups in chain: #{all_groups}"
+      @neighbors.each do |type, set_of_neighbors|
+        Rails.logger.info "\n==== #{type.inspect}"
+        set_of_neighbors.each do |neighbor|
+          Rails.logger.info "---- #{neighbor.inspect}"
+        end
+      end
+      Rails.logger.info "==== eyes:"
+      @eyes.keys.each do |eye|
+        Rails.logger.info "---- #{eye.inspect}"
+      end
+      Rails.logger.info "==== chain.alive?: #{alive?.to_s.upcase}, territory_points: #{territory_points}"
+      Rails.logger.info "\n"
+    end
   end
 
-  class MetaChain
+  class MetaChain < Container
     def initialize(initial_chain, params={})
       @color = params[:color]
 

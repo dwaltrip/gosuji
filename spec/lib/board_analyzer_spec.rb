@@ -441,7 +441,208 @@ describe Scoring::BoardAnalyzer do
 
       end
     end
-
   end
+
+  describe '.combine_stone_groups_into_chains' do
+
+    context "with example #1" do
+      board_analyzer = build_board_analyzer([
+        '|_|w|b|w|b|b|_|',
+        '|w|_|b|w|b|_|b|',
+        '|w|w|b|w|_|b|b|',
+        '|b|b|w|w|w|w|w|',
+        '|b|_|b|b|_|w|_|',
+        '|_|b|_|b|w|_|w|',
+        '|_|_|_|b|w|w|_|'
+      ])
+      finder = Proc.new { |k| board_analyzer.find_container(k) }
+
+      expected_groups = {
+        1   => Group.new(WHITE, [1], [0, 8], { enemies: [2] }),
+        2   => Group.new(BLACK, [2, 9, 16], [8], { enemies: [1, 3, 5] }),
+        3   => Group.new(WHITE, [3, 10, 17, 23, 24, 25, 26, 27, 33], [18, 32, 34, 40], { enemies: [2, 4, 6, 7, 8] }),
+        4   => Group.new(BLACK, [4, 5, 11], [6, 12, 18], { enemies: [3] }),
+        5   => Group.new(WHITE, [7, 14, 15], [0, 8], { enemies: [2, 7] }),
+        6   => Group.new(BLACK, [13, 19, 20], [6, 12, 18], { enemies: [3] }),
+        7   => Group.new(BLACK, [21, 22, 28], [29, 35], { enemies: [3, 5] }),
+        8   => Group.new(BLACK, [30, 31, 38, 45], [29, 32, 37, 44], { enemies: [3, 10] }),
+        9   => Group.new(BLACK, [36], [29, 35, 37, 43], { enemies: [] }),
+        10  => Group.new(WHITE, [39, 46, 47], [32, 40, 48], { enemies: [8] }),
+        11  => Group.new(WHITE, [41], [34, 40, 48], { enemies: [] })
+      }
+
+      expected_territories = {
+        1   => Territory.new([0], { white: [1, 5], black: [] }),
+        2   => Territory.new([6], { white: [], black: [4, 6] }),
+        3   => Territory.new([8], { white: [1, 5], black: [2] }),
+        4   => Territory.new([12], { white: [], black: [4, 6] }),
+        5   => Territory.new([18], { white: [3], black: [4, 6] }),
+        6   => Territory.new([29], { white: [], black: [7, 8, 9] }),
+        7   => Territory.new([32], { white: [3, 10], black: [8] }),
+        8   => Territory.new([34], { white: [3, 11], black: [] }),
+        9   => Territory.new([35, 37, 42, 43, 44], { white: [], black: [7, 8, 9] }),
+        10  => Territory.new([40], { white: [3, 10, 11], black: [] }),
+        11  => Territory.new([48], { white: [10, 11], black: [] })
+      }
+
+      Chain = Struct.new(:color, :groups, :neighbor_chains, :surrounded_territories, :neutral_territories)
+      expected_chains = {
+        1 => Chain.new(WHITE, [1, 5], [2, 5], [1], [3]),
+        2 => Chain.new(BLACK, [2], [1, 3], [], [3]),
+        3 => Chain.new(WHITE, [3, 10, 11], [2, 4, 5], [8, 10, 11], [5, 7]),
+        4 => Chain.new(BLACK, [4, 6], [3], [2, 4], [5]),
+        5 => Chain.new(BLACK, [7, 8, 9], [1, 3], [6, 9], [7])
+      }
+
+      it "identifies chains, and the member stone groups for each chain" do
+        expect(board_analyzer.chains.size).to eq(expected_chains.size)
+
+        expected_chains.values.each do |expected_chain|
+          # tile position of stone -> StoneGroup instance -> Chain instance
+          actual_chain = finder.call(finder.call(expected_groups[expected_chain.groups[0]].stones[0]))
+
+          expect(actual_chain.size).to eq(expected_chain.groups.size)
+
+          expected_chain.groups do |expected_group_id|
+            expected_member_group = finder.call(expected_groups[expected_group_id].stones[0])
+
+            expect(actual_chain.groups).to include(expected_member_group)
+            expect(actual_chain).to eq(finder.call(expected_actual_group))
+          end
+        end
+      end
+
+      it "identifies neighboring enemy chains" do
+        expected_chains.values.each do |expected_chain|
+          actual_chain = finder.call(finder.call(expected_groups[expected_chain.groups[0]].stones[0]))
+
+          expect(actual_chain.neighboring_enemy_chains.size).to eq(expected_chain.neighbor_chains.size)
+
+          expected_chain.neighbor_chains do |expected_enemy_chain_id|
+            expected_enemy_chain = expected_chains[expected_enemy_chain_id]
+            expected_actual_enemy_chain = finder.call(finder.call(expected_enemy_chain.groups[0].stones[0]))
+
+            expect(actual_chain.neighboring_enemy_chains).to include(expected_actual_enemy_chain)
+            expect(expected_actual_enemy_chain.neighboring_enemy_chains).to include(actual_chain)
+          end
+        end
+      end
+
+      it "identifes neighboring territories" do
+        expected_chains.values.each do |expected_chain|
+          actual_chain = finder.call(finder.call(expected_groups[expected_chain.groups[0]].stones[0]))
+
+          expect(actual_chain.surrounded_territories.size).to eq(expected_chain.surrounded_territories.size)
+          expect(actual_chain.neutral_territories.size).to eq(expected_chain.neutral_territories.size)
+
+          expected_chain.surrounded_territories.each do |expected_territory_id|
+            actual_expected_territory = finder.call(expected_territories[expected_territory_id].tiles[0])
+            expect(actual_chain.surrounded_territories).to include(actual_expected_territory)
+          end
+
+          expected_chain.neutral_territories.each do |expected_territory_id|
+            actual_expected_territory = finder.call(expected_territories[expected_territory_id].tiles[0])
+            expect(actual_chain.neutral_territories).to include(actual_expected_territory)
+          end
+        end
+      end
+    end
+
+    shared_examples "prepares scoring related chain data" do |board_analyzer, chain_data|
+      make_chain = Proc.new do |stone_pos, alive_status, territory_points, eye_pos_list, fake_eye_pos_list|
+        OpenStruct.new(
+          pos_of_a_member_stone: stone_pos,
+          alive_status: alive_status,
+          territory_points: territory_points,
+          tile_positions_for_eyes: eye_pos_list,
+          tile_positions_for_fake_eyes: fake_eye_pos_list
+        )
+      end
+      finder = Proc.new { |k| board_analyzer.find_container(k) }
+      expected_chains = chain_data.map { |data| make_chain.call(*data) }
+
+      it "marks which surrounded territories are eyes" do
+        expected_chains.each do |expected_chain|
+          # tile pos of stone -> StoneGroup instance -> Chain instance
+          actual_chain = finder.call(finder.call(expected_chain.pos_of_a_member_stone))
+
+          expected_chain.tile_positions_for_eyes.each do |tile_pos|
+            territory = finder.call(tile_pos)
+
+            expect(actual_chain.surrounded_territories).to include(territory)
+            expect(actual_chain.has_eye?(territory)).to be_true
+            expect(territory.is_eye?).to be_true
+          end
+
+          expected_chain.tile_positions_for_fake_eyes.each do |tile_pos|
+            territory = finder.call(tile_pos)
+
+            expect(actual_chain.surrounded_territories).to include(territory)
+            expect(actual_chain.has_eye?(territory)).to be_false
+            expect(territory.is_eye?).to be_false
+          end
+        end
+      end
+
+      it "labels chains as dead or alive" do
+        expected_chains.each do |expected_chain|
+          # tile pos of stone -> StoneGroup instance -> Chain instance
+          actual_chain = finder.call(finder.call(expected_chain.pos_of_a_member_stone))
+          expect(actual_chain.alive?).to eq(expected_chain.alive_status)
+        end
+      end
+
+      it "computes territory points for each chain" do
+        expected_chains.each do |expected_chain|
+          # tile pos of stone -> StoneGroup instance -> Chain instance
+          actual_chain = finder.call(finder.call(expected_chain.pos_of_a_member_stone))
+          expect(actual_chain.territory_points).to eq(expected_chain.territory_points)
+        end
+      end
+    end
+
+    context "with example #2" do
+      board_analyzer = build_board_analyzer([
+        '|_|_|b|b|b|_|b|',
+        '|_|b|b|w|w|b|b|',
+        '|b|_|w|_|_|w|_|',
+        '|b|b|b|w|w|b|b|',
+        '|w|w|b|b|w|w|b|',
+        '|_|w|w|w|w|b|b|',
+        '|w|_|b|_|w|b|_|'
+      ])
+
+      data_for_expected_chains = [
+        [3,  true,   5, [0, 48], [5]],
+        [28, false,  0, [35],    [17, 18]],
+        [44, false,  0, [],      []]
+      ]
+
+      it_ "prepares scoring related chain data", board_analyzer, data_for_expected_chains
+    end
+
+    context "with example #3" do
+      board_analyzer = build_board_analyzer([
+        '|_|b|w|w|_|w|w|b|_|',
+        '|b|_|b|w|w|_|w|b|b|',
+        '|w|b|b|w|_|_|w|w|b|',
+        '|w|w|b|b|w|w|b|b|_|',
+        '|_|w|w|b|b|_|b|b|b|',
+        '|w|w|_|w|b|_|b|w|w|',
+        '|b|b|w|w|w|w|w|_|w|',
+        '|_|b|w|_|b|b|b|w|_|',
+        '|b|_|b|b|b|_|b|w|_|',
+      ])
+
+      data_for_expected_chains = [
+        [1,  true, 4, [0, 8],          [10, 35]],
+        [18, true, 9, [4, 22, 36, 80], [47, 61]],
+        [72, true, 3, [63, 77],        [73]]
+      ]
+
+      it_ "prepares scoring related chain data", board_analyzer, data_for_expected_chains
+    end
+  end
+
 end
 

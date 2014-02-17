@@ -1,3 +1,7 @@
+NOTE: This documentation is imperfect. The general idea is quite accurate, however there are some
+      semi-fuzzy details that the implementation is forced to clear up. It isn't worth the time right now
+      to update the docs (more pressing matters beckon). Regardless, the code is relatively well-tested.
+
 -----------
 Definitions
 -----------
@@ -122,23 +126,23 @@ Idea: As we grab the neighbors for each tile, order them from friendly, to empty
     - Choose a initial territory to begin the algorithm (doesn't matter which one).
         * If the territory is surrounded by one color, determine if it is also an eye
             - If it is size 3 or more, it is an eye
+            ---- FOLLOWING LOGIC IS WRONG (will update in the future, see specs for examples with correct logic) -----
             - If it is size 2 or 1, then we have to check each directly diagonally tile. Corner territories have a
               single diagonally adjacent tile, edge territories have 2 diagonally adjacent tiles, and center tiles
               have 4 diagonally adjacent tiles. If more than 1 of these diagonally adjacent tiles is an enemy stone,
               the territory is NOT an eye. Otherwise, the territory is an eye for the chain it is surrounded by.
+            ---- END BLOCK OF INCRROECT LOGIC ----
         * Iterate through all neighboring stone groups
             - For the first neighboring black stone group we see, create a new chain for that group.
-              ---- IDEA ---- Let new chain class accept a max_depth param for how many levels deep we go with
-              ---- ---- ---- creating new chains for all neighboring groups of any group we add to the chain.
               Process for creating a new chain (from an initial stone group):
                 * Take the initial group, add to set of member groups for the chain
                 * Iterate through all neighboring stone groups for the initial group (which are enemies, by def)
                     - If the neighboring group is already in a chain, add it as a neighboring chain
-                    - Otherwise, create a new chain for that group, and then add it as a neighboring chain
+                    - Otherwise, create a new chain for that group, and then add it as a neighboring chain.
                 * Iterate through neighboring territories for the initial group
                     - Check the surrounded-by-single-color indicator, and add to either the set of neighboring
                       neutral territories or the set of surrounded territories (eyes)
-                    - If territory is surrounded, increment the point count for the c
+                    - If territory is surrounded, increment the point count for the chain
             - For subsequent black groups, add them to the existing black chain.
                 * If they are already in a chain, then merge the two chains
                   Process for merging two chains:
@@ -259,6 +263,7 @@ Task 3 Algorithm
                 * Merge sets of member chains from meta-chain 2 into that of meta-chain 1
                 * Merge map from dead enemy chains to connected member chains for meta-chain 2 into meta-chain 1
                 * Add the point counts together for a new total
+    - shit.. what about the case where the marked stone is already in a meta-chain??
 
 * Steps for marking a stone as alive:
     - Lookup the group that marked_pos belongs to
