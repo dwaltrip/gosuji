@@ -27,6 +27,9 @@ doc/
 .idea
 .secret
 
+# now we can ignore any file by adding _#GI#_ to the filename (regardless of folder location)
+*_#GI#_*
+
 # Ignore misc directory
 /misc
 

@@ -9,15 +9,16 @@ GoApp::Application.routes.draw do
   get "sign_up" => "users#new", :as => "sign_up"
   resources :users, :only => [:new, :create, :show]
 
-  post 'games/:id', to: 'games#update'
   resources :games do
     member do
       get :join
+      post :new_move
+      post :pass_turn
+      post :undo_turn
       post :request_undo
+      post :mark_stones
+      post :done_scoring
     end
   end
-
-  # temp route for testing purposes
-  get 'games/:id/testing_rulebook', to: 'games#testing_rulebook', :as => 'test_rulebook'
 
 end

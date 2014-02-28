@@ -1,12 +1,16 @@
-<h1>Game in progress:
-  <%= game.white_player.username %> (white) vs.
-  <%= game.black_player.username %> (black)
-</h1>
+<h1><%= game.white_player.username %> (white) vs. <%= game.black_player.username %> (black)</h1>
 
 <div class='game-status-info'>
   <p>
-    <%= move_status_message(game) %><br>
-    Captures -- Black: <%= game.black_capture_count %>,
-                White: <%= game.white_capture_count %>
+    <span id='status-message'><%= status_message(game) %></span><br>
+
+    Captures -- Black: <span id='black-capture-count'><%= game.black_capture_count %></span>
+    White: <span id='white-capture-count'><%= game.white_capture_count %></span>
+
+    <% div_params = [[:id, 'score-container'], ([:class, 'hidden'] if game.active?)] %>
+    <%= content_tag :div, Hash[div_params.compact] do %>
+      Score -- Black: <span id='black-point-count'><%= game.black_point_count %></span>
+      White: <span id='white-point-count'><%= game.white_point_count %></span>
+    <% end %>
   </p>
 </div>

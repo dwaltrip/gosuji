@@ -1,0 +1,82 @@
+Scenario spec, 2014-02-06
+
+========= ---------------- =========
+--------- END GAME SCORING ---------
+========= ---------------- =========
+
+-------------------------
+Description of user story
+-------------------------
+
+Two users are playing a game, they finish their moves, and both pass in a row.
+This ends the 'ACTIVE' game part, and the game enters the 'END GAME SCORING' phase.
+A notification window popups for both players with instructions for how to score and finalize the game.
+
+The board display is updated with the initial analysis from scoring bot:
+    -- the eyes of groups with 2+ eyes or an eye of size 3 or more, if the eyes do not contain enemy stones,
+        are considered territory points for that player. eyes of that group containing enemy stones are neutral tiles.
+    -- all other empty tiles are considered neutral tiles/no points.
+    -- all stone groups start out as alive
+
+The players can now, at the same time, mark/unmark stone groups as dead.
+* Effect of marking a stone as dead are:
+    All stones of the same color that can be reached by travelling horizontally and/or vertically from that stone,
+    without running into an ememy stone (empty tiles are ok), are also marked as dead. Those tiles, as well as
+    all connected empty tiles, are now enemy territory (1 point each).  The dead stones are an additional 1 point each.
+    Any enemy groups that are reachable from the marked stone are now alive, regardless of prior status.
+    Friendly groups reachable through these enemy groups (but not directly from the marked stone) are not affected.
+    Dead stones are differentiated from alive stones visually (probably with partial transparency),
+    as well as having the opposing color territory marker.
+* Effect of marking a stone as alive are:
+    All stones of the same color that be reached by travelling horizontally and/or vertically from that stone,
+    without running into an enemy stone (empty tiles are ok), are marked as alive. Any territories touching these
+    now alive stone groups are no longer enemy points. The now alive member stones are also no longer worth any points
+    to the enemy. Alive stones look the same as regular stones during the 'ACTIVE' phase.
+
+During this time, either player may click 'Undo', and re-enter the 'ACTIVE' phase. Their last pass will be un-done,
+and it will be their turn to play a move. All tiles with dead stones will go back to displaying a regular stone,
+and empty territory tiles will display a regular empty tile. To re-enter scoring, both players must pass again.
+
+When a player thinks the score is correct, they click 'Done'. The first player to do so will have their screen
+updated with a message stating: "waiting for other player". When the second player clicks done, the game ends,
+and the score at that state is the final score. Both players and any observers receive a popup detailing the result
+and final score.
+
+-----------------------------------------------------
+High-level overview of program flow for this scenario
+-----------------------------------------------------
+
+Both players have passed in a row, and now we are in the games#pass_turn controller action.
+If it is an isolated pass, we update the game the same as with the new_move and undo_turn controller actions.
+The game continues as usual.  If it is the second pass in a row, we are now in scoring mode.
+The Games controller asks the Game model to analyze the board and determine any initial territory tiles.
+The Game model delegates this logic the ScoreBot class.
+
+After calculating the initial analysis, the ScoreBot stores the necessary data structures in Redis, as the scoring
+stage is temporary.  Intermediate states between initial analysis and player-indicated 'finalized' state is not
+persisted in a Rails model.  We simply serialize the data and store it in Redis with a key based off the game id.
+
+This data, along with the scoring instructions popup content, is passed as a json response to the player
+who performed the pass action. The data is processed by a scoring_update javascript function which is set as the
+response callback to scoring related ajax requests. The board is updated, and regular game turn actions are disabled.
+The games controller also passes this same data to the opponent through redis -> node -> websockets.
+The websocket listener then calls the same scoring update function directly, passing the data it received.
+These updates to the board are handled in a similar fashion to the update_game function.
+(Later, we can probably refactor portions of this similar functionality).
+
+When a player peforms the UI action to mark a stone as dead, an ajax post request is made to a scoring_update action
+in the games controller. This information is encoded as the specific numeric position of the tile on the board.
+Similarily to the initial analysis, we request, through the game model, the ScoringBot to determine the impact of
+marking this stone as dead. See 3rd paragraph of 'user story' for a plain-english explanation of the impact.
+The ScoreBot retrieves the board analysis data and game scoring state stored in redis.
+Then it double checks if it is valid to mark the indicated stone as dead.
+If it is valid, ScoreBot calculated updates, stores the updated analysis in redis, and then we pass the update data
+to both players the same way we did for the initial analysis (also similar to how 'active' game updates are handled).
+See previous paragraph for details.
+
+The process described in paragraph 4 repeats until both players click 'Done'. When a player clicks done,
+we store an indicator for this in redis. If either player then changes the board, the indicator is deleted.
+However, if the other player clicks done, and the indicator is present, then the game is over and the score finalized.
+The game model udpates to 'FINISHED' status, also saving the finalized score details.
+A notification of these results is then sent to both players, as well as any observers.
+

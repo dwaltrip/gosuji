@@ -12,6 +12,7 @@
       <th class='board-size-col centered'>Size</th>
       <th class='profile-description-col'>Description</th>
       <th class='active-col centered'>Active?</th>
+      <th class='result-col centered'>Result</th>
       <th class='first-link-col centered'>Load</th>
     </tr>
   </thead>
@@ -26,7 +27,8 @@
     <td><%= g.opponent(current_user).username if g.opponent(current_user) %></td>
     <td class='centered'><%= g.board_size %> x <%= g.board_size %></td>
     <td><%= g.description %></td>
-    <td class='centered'><%= if g.active? then "Yep!" else "-" end %></td>
+    <td class='centered'><%= ("Yes" if g.active?) || "-" %></td>
+    <td class='centered'><%= final_result_message_short(g) if g.finished? %></td>
     <td class='centered'><%= link_to "Load", game_path(g) %></td>
     </tr>
   <% end %>
