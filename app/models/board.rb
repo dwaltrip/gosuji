@@ -23,7 +23,7 @@ class Board < ActiveRecord::Base
 
   def pos_nums_and_tile_states(pos_list=nil)
     if pos_list == nil
-      Array.new(self.game.board_size**2) { |n| [n, state(n)] }
+      Array.new(game.board_size**2) { |n| [n, state(n)] }
     else
       logger.info "-- board.pos_nums_and_tile_states -- pos_list: #{pos_list.inspect}"
       pos_list.to_a.sort.map { |n| [n, state(n)] }
@@ -31,15 +31,15 @@ class Board < ActiveRecord::Base
   end
 
   def tiles
-    Array.new(self.game.board_size**2) { |n| state(n) }
+    Array.new(game.board_size**2) { |n| state(n) }
   end
 
   # this should be implemented better. we should have smart defaults for attributes,
   # and only change releveant ones
   def replicate_and_update(pos, captured_count, color)
-    new_board = self.dup
-    new_board.game = self.game
-    new_board.move_num = self.move_num + 1
+    new_board = dup
+    new_board.game = game
+    new_board.move_num = move_num + 1
     new_board.pos = pos
     new_board.add_stone(pos, color)
     new_board.captured_stones = captured_count
@@ -72,12 +72,12 @@ class Board < ActiveRecord::Base
   end
 
   def time_left
-    self.seconds_remaining
+    seconds_remaining
   end
 
   def stone_lists
     black_stones, white_stones = [], []
-    (0...self.game.board_size**2).each do |n|
+    (0...game.board_size**2).each do |n|
       val = state(n)
       if val == GoApp::BLACK_STONE
         black_stones << n
@@ -89,12 +89,12 @@ class Board < ActiveRecord::Base
   end
 
   def black_stones
-    black_stones, white_stones = self.stone_lists
+    black_stones, white_stones = stone_lists
     black_stones
   end
 
   def white_stones
-    black_stones, white_stones = self.stone_lists
+    black_stones, white_stones = stone_lists
     white_stones
   end
 

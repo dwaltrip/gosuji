@@ -4,7 +4,7 @@ class User < ActiveRecord::Base
   has_many :created_games, :class_name => 'Game', :foreign_key => :creator_id
   has_many :won_games, :class_name => 'Game', :foreign_key => :winner_id
 
-  before_save { self.email = email.downcase if self.email }
+  before_save { self.email = email.downcase if email }
   before_validation :clean_data
 
   VALID_USERNAME_REGEX = /\A[[[:ascii:]]&&[^:;]]+\Z/
