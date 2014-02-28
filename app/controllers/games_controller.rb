@@ -29,13 +29,12 @@ class GamesController < ApplicationController
   end
 
   def join
-    if current_user == @game.creator
-      redirect_to games_path, notice: "You can't join a game you created!"
-      return
+    if @game.open? && current_user != @game.creator
+      @game.pregame_setup(current_user)
+      respond_to { |format| format.json }
+    else
+      render nothing: true
     end
-
-    @game.pregame_setup(current_user)
-    redirect_to @game
   end
 
   def show

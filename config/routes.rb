@@ -11,7 +11,7 @@ GoApp::Application.routes.draw do
 
   resources :games do
     member do
-      get :join
+      post :join
       post :new_move
       post :pass_turn
       post :undo_turn

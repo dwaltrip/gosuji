@@ -388,6 +388,10 @@ class Game < ActiveRecord::Base
     self.status == FINISHED
   end
 
+  def open?
+    self.status == OPEN
+  end
+
   def not_open?
     self.status != OPEN
   end

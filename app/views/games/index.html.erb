@@ -13,14 +13,28 @@
     </tr>
   </thead>
 
-  <% @open_games.each do |g| %>
+  <% @open_games.each do |game| %>
     <tr>
-      <td><%= g.creator.username %></td>
-      <td class='centered'><%= g.board_size %> x <%= g.board_size %></td>
-      <td><%= g.description %></td>
-      <td class='centered'><%= link_to "Join", join_game_path(g) %></td>
+      <td><%= game.creator.username %></td>
+      <td class='centered'><%= game.board_size %> x <%= game.board_size %></td>
+      <td><%= game.description %></td>
+      <td class='centered'>
+        <% if game.creator != current_user %>
+          <%= link_to "Join", join_game_path(game), class: 'join-game-link', "data-username" => game.creator.username %>
+        <% else %>
+          -
+        <% end %>
+      </td>
     </tr>
   <% end %>
 </table>
 
 <p><%= link_to "Create new game", new_game_path %></p>
+
+<div class='hidden'>
+  <div id="join-game-content-wrapper">
+    <%= render 'join_game_form' %>
+  </div>
+</div>
+
+<% javascript 'index.js' %>

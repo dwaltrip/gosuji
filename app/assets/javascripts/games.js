@@ -1,5 +1,3 @@
-console.log('Successfully loaded games.js')
-
 var socket = null;
 var modal = new Modal({ closeButton: false });
 
