@@ -40,7 +40,7 @@ $(document).ready(function() {
 function update_game(data) {
     console.log('-- update_game -- data:', data);
 
-    // if both players pass in a row, game is now in scoring mode -- pass data to 'update_scoring'
+    // if both players pass in a row, game is now in scoring mode -- defer to 'update_scoring' function
     if (hasKey(data, 'just_entered_scoring_phase')) update_scoring(data);
     else
     {
@@ -67,6 +67,8 @@ function update_scoring(data) {
 
     if (hasKey(data, 'just_entered_scoring_phase')) setup_scoring(data);
 
+    $('#done-scoring-button').prop('disabled', false);
+
     $('#black-point-count').text(data.points.black);
     $('#white-point-count').text(data.points.white);
 
@@ -79,22 +81,25 @@ function update_scoring(data) {
     }
 }
 
-
 function setup_scoring(data) {
+    console.log('-- setup_scoring -- data:', data);
+
     var $board_form = $('#board-form');
     $board_form.attr('action', data.form_action);
 
-    // should also update status message in here
+    $('.tile-container.playable').removeClass('playable');
+    $('.tile-container.stone').addClass('alive-stone');
+
+    $('#score-container').removeClass('hidden');
+    $('#status-message').text(data.status_message);
 
     $board_form.on('click.mark_dead', '.tile-container.alive-stone', function(e) {
-        if (e.ctrlKey) {
-            ajax_post_helper(this, { stone_pos: $(this).data('pos'), action: 'mark-dead' }, update_scoring);
-        }
+        ajax_post_helper(this, { stone_pos: $(this).data('pos'), mark_as: 'dead' }, update_scoring);
     });
 
     $board_form.on('click.mark_alive', '.tile-container.dead-stone', function(e) {
         if (e.shiftKey) {
-            ajax_post_helper(this, { stone_pos: $(this).data('pos'), action: 'mark-alive' }, update_scoring);
+            ajax_post_helper(this, { stone_pos: $(this).data('pos'), mark_as: 'not_dead' }, update_scoring);
         }
     });
 
@@ -102,13 +107,28 @@ function setup_scoring(data) {
     $('#done-scoring-form').on('submit.done_scoring', function(e) {
         e.preventDefault();
         $('#done-scoring-button').prop('disabled', true);
-        ajax_post_helper(this, null, update_scoring);
+        ajax_post_helper(this, null, done_scoring_callback);
     });
 
     modal.open({ content: data.instructions });
     disable_turn_actions();
 }
 
+
+function done_scoring_callback(data) {
+    console.log('-- done_scoring_callback -- data:', data);
+
+    $('#status-message').text(data.status_message);
+
+    if (data.game_finished) {
+        $('.tile-container').removeClass('alive-stone', 'dead-stone');
+        $('#done-scoring-button').prop('disabled', true);
+        $('#undo-button').prop('disabled', true);
+        $('#resign-button').prop('disabled', true);
+
+        modal.open({ content: data.game_finished_message });
+    }
+}
 
 function disable_turn_actions() {
     $('div.tile-container.clickable').removeClass('clickable');
@@ -121,8 +141,8 @@ function enable_turn_actions() {
 
 
 function get_socket() {
-    console.log('-- sockjs_url: ' + sockjs_url + '\n');
-    var sockjs = new SockjsClient(sockjs_url);
+    console.log('-- sockjs_url: ' + window.sockjs_url + '\n');
+    var sockjs = new SockjsClient(window.sockjs_url);
 
     sockjs.on('connect', function() {
         console.log("sockjs successfully connected with protocol '" + sockjs.protocol + "'");
@@ -130,7 +150,7 @@ function get_socket() {
     });
 
     sockjs.on('close', function() {
-        console.log("sockjs connection close. callback args: " + JSON.stringify(Array.prototype.slice.call(arguments)));
+        console.log("sockjs connection close. callback args: " + Array.prototype.slice.call(arguments));
     });
 
     sockjs.on('message', function(data) {
@@ -153,12 +173,16 @@ function get_socket() {
         update_scoring(data);
     });
 
+    sockjs.on('game-finished', function(data) {
+        console.log("inside sockjs.on('game-finished', cb) callback, data= " + JSON.stringify(data));
+        done_scoring_callback(data);
+    });
+
     return sockjs;
 }
 
 function ajax_post_helper(form_elem, extra_data, on_success_callback) {
     var $form = $(form_elem).closest('form');
-    console.log('-- entering ajax_post -- form: ', $form.attr('id'));
     extra_data = extra_data || {};
     extra_data.connection_id = window.connection_id;
 
@@ -174,7 +198,7 @@ function ajax_post_helper(form_elem, extra_data, on_success_callback) {
     console.log('-- ajax_helper -- $.post for:', $form.attr('id'), '-- $form.serialize():', $form.serialize(), "\n");
     $.post($form.attr('action'), $form.serialize(), on_success_callback, 'json');
 
-    // clear out hidden data, so future ajax actions have clean slate
+    // clear out our hidden data for $form, so future ajax actions have a clean slate
     $('.hidden-data', $form).remove();
 }
 

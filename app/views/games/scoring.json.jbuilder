@@ -2,6 +2,8 @@
 if @just_entered_scoring_phase
   json.just_entered_scoring_phase true
   json.instructions scoring_instructions
+  json.form_action mark_stones_game_path(@game)
+  json.status_message "Time to score the game!"
 end
 
 json.points do

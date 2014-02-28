@@ -1,6 +1,7 @@
 class GamesController < ApplicationController
   before_filter :require_login, :except => :index
-  before_action :find_game, only: [:show, :join, :new_move, :pass_turn, :undo_turn, :request_undo]
+  before_action :find_game, only: [:show, :join, :new_move, :pass_turn,
+    :undo_turn, :request_undo, :mark_stones, :done_scoring]
 
   def index
     @open_games = Game.open.order('created_at DESC')
@@ -38,27 +39,20 @@ class GamesController < ApplicationController
   end
 
   def show
-    pretty_log_game_info("-- games#show -- ")
-    @connection_id = generate_token
-
     if @game.end_game_scoring?
       @just_entered_scoring_phase = true
-      #@scoring_tiles = @game.scoring_tiles # something like this..
 
-      # two approaches
-      # 1) allow for @game.scoring_tiles to render a) ALL tiles or b) just the minimum necessary
-      #    to update an already shown game from two passes in a row -> initial scoring state
-      # 2) it only generates the b) from 1), and we merge overwrite portions of the regular @tiles data
-    else
-      #@tiles = decorated_tiles(current_user, render_updates_only=false)
+      tiles_to_render = @game.tiles_to_render_during_scoring(overwrite_data_store=true)
+      @tiles = decorated_tiles(current_user, tiles_to_render)
+      @json_scoring_data = json_scoring_updates(reset_content_type_to_html=true)
     end
 
-    @tiles = decorated_tiles(current_user, render_updates_only=false)
+    @connection_id = generate_token
+    @tiles = decorated_tiles(current_user, @game.tiles_to_render(current_user))
   end
 
-
   def new_move
-    update_helper @game.new_move(params[:new_move].to_i, current_user)
+    update_helper(@game.new_move(params[:new_move].to_i, current_user))
   end
 
   def pass_turn
@@ -68,8 +62,6 @@ class GamesController < ApplicationController
       elsif @game.end_game_scoring?
         @just_entered_scoring_phase = true
         scoring_helper(true)
-      else
-        logger.info "\n---- oops ----\n"
       end
     else
       render nothing: true
@@ -82,7 +74,7 @@ class GamesController < ApplicationController
     valid_undo_approval = (params[:undo_status] == "approved" && move_num == @game.move_num)
 
     undo_requester = @game.opponent(current_user)
-    update_helper (valid_undo_approval && @game.undo(undo_requester))
+    update_helper(valid_undo_approval && @game.undo(undo_requester))
   end
 
   def request_undo
@@ -95,11 +87,21 @@ class GamesController < ApplicationController
   end
 
   def mark_stones
-    render nothing: true
+    scoring_helper(@game.mark_stone(params[:stone_pos].to_i, params[:mark_as]))
   end
 
   def done_scoring
-    render nothing: true
+    if @game.update_done_scoring_flags(current_user)
+      if @game.finished?
+        # would be nice to not have to parse this (look into RABL, which allows skipping the hash to json string step)
+        data = JSON.parse(render_to_string(template: 'games/done_scoring', formats: [:json], locals: { game: @game }))
+        send_event_data_to_other_clients(event_name: "game-finished", payload: data)
+      end
+
+      respond_to { |format| format.json { render 'games/done_scoring', locals: { game: @game } } }
+    else
+      render nothing: true
+    end
   end
 
 
@@ -109,14 +111,15 @@ class GamesController < ApplicationController
     pretty_log_game_info("-- games#update_helper -- ")
 
     if update_action_was_successful
-      @tiles = decorated_tiles(current_user)
+      @tiles = decorated_tiles(current_user, @game.tiles_to_render(current_user, updates_only=true))
 
       # if ever necessary, we can merge additional data into the opponenet_data hash
       # the 'JSON.parse' foolishness is needed as I couldn't make Jbuilder skip the actual JSON string encoding
       opponent = @game.opponent(current_user)
-      opponent_data = JSON.parse(render_to_string(template: 'games/update', formats: [:json],
-        locals: { tiles: decorated_tiles(opponent), user: opponent }
-      ))
+      opponent_data = JSON.parse(render_to_string(template: 'games/update', formats: [:json], locals: {
+        tiles: decorated_tiles(opponent, @game.tiles_to_render(opponent, updates_only=true)),
+        user: opponent
+      }))
 
       logger.info "-- games#update_helper -- opponent_data: #{opponent_data.inspect}"
       send_event_data_to_other_clients event_name: "game-update", payload: opponent_data
@@ -129,42 +132,49 @@ class GamesController < ApplicationController
     end
   end
 
-
-  ####====###
   def scoring_helper(scoring_update_was_successful)
     if scoring_update_was_successful
-      # some potential things that might happen when fully implemented
-      #@scoring_data = @game.scoring_data # this method interacts with ScoreBot
-      #@tiles = @game.scoring_tiles_to_render(pos)
-      #@tiles = @game.scoring_tiles_to_render
+      overwrite_data_store = (true if @just_entered_scoring_phase) || false
+      @tiles = decorated_tiles(current_user, @game.tiles_to_render_during_scoring(overwrite_data_store))
 
-      @tiles = []
-
-      send_event_data_to_other_clients event_name: "scoring-update",
-        payload: JSON.parse(render_to_string(template: 'games/scoring', formats: [:json]))
-
+      send_event_data_to_other_clients(event_name: "scoring-update", payload: JSON.parse(json_scoring_updates))
       respond_to { |format| format.json { render 'games/scoring' } }
     else
       render nothing: true
     end
   end
-  ####====###
+
+  def json_scoring_updates(reset_content_type_to_html=false)
+    json = render_to_string(template: 'games/scoring', formats: [:json])
+    response.headers["Content-Type"] = 'text/html' if reset_content_type_to_html
+    json
+  end
 
 
-  def decorated_tiles(player, render_updates_only=true)
+  def decorated_tiles(player, tiles_to_render)
     logger.info "-- games#decorated_tiles -- #{player.username} as #{@game.player_color(player)}"
     viewer = @game.viewer(player)
     last_pos = @game.active_board.pos
-    ko_pos = @game.get_ko_position(player)
 
-    @game.tiles_to_render(player, render_updates_only).map do |pos, tile_state|
+    # should these checks be put inside game model??
+    display_scoring_stuff = @game.end_game_scoring? || @game.finished?
+
+    ko_pos = @game.get_ko_position(player) unless display_scoring_stuff
+    invalid_moves = @game.invalid_moves unless display_scoring_stuff
+
+    tiles_to_render.map do |pos, tile_state|
       new_tile = TilePresenter.new(
         board_size: @game.board_size,
         state: tile_state,
         pos: pos,
         viewer: viewer,
-        invalid_moves: @game.invalid_moves
+        game_status: @game.status,
+        invalid_moves: invalid_moves
       )
+
+      new_tile.territory_status = @game.territory_status(pos) if display_scoring_stuff
+      new_tile.is_dead_stone = true if display_scoring_stuff && @game.has_dead_stone?(pos)
+
       new_tile.is_most_recent_move = true if pos == last_pos
       new_tile.is_ko = true if pos == ko_pos
       new_tile
@@ -182,14 +192,15 @@ class GamesController < ApplicationController
   def find_game
     @game = Game.find(params[:id])
     @room_id = "game-#{@game.id}"
+    pretty_log_game_info('----')
   end
 
-  def pretty_log_game_info(prefix)
+  def pretty_log_game_info(prefix='')
     inspect_prefix = @game.inspect.split[0] # use this to insert game.object_id into the game.inspect output
     log_msg1 = "game: #{inspect_prefix} object_id: #{@game.object_id},#{@game.inspect[(inspect_prefix.length)..-1]}"
     log_msg2 = "game.active_board: #{@game.active_board.inspect}"
-    logger.info "#{prefix}#{log_msg1}"
-    logger.info "#{prefix}#{log_msg2}"
+    logger.info "#{prefix} #{log_msg1}"
+    logger.info "#{prefix} #{log_msg2}"
   end
 
 end

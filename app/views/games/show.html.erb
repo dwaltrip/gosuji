@@ -18,7 +18,7 @@
       <% end %>
 
 
-      <%= form_tag({ action: :done_scoring }, { id: 'done-scoring-form', remote: true }) do %>
+      <%= form_tag({ action: :done_scoring }, { id: 'done-scoring-form' }) do %>
         <% css_classes = ["button", ("hidden" if !@game.end_game_scoring?)] %>
         <%= submit_tag 'Done', name: 'done', class: css_classes.compact.join(" "), id: "done-scoring-button" %>
       <% end %>
@@ -38,8 +38,7 @@
 
   <% if @just_entered_scoring_phase %>
     $(document).ready(function() {
-      modal.open({ content: "<%= j scoring_instructions.html_safe %>" });
-      disable_turn_actions();
+      update_scoring(<%= @json_scoring_data.html_safe %>);
     });
   <% end %>
 <% end %>

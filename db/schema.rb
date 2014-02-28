@@ -11,7 +11,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20131012233709) do
+ActiveRecord::Schema.define(version: 20140224214828) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
@@ -396,26 +396,32 @@ ActiveRecord::Schema.define(version: 20131012233709) do
   create_table "games", force: true do |t|
     t.integer  "black_player_id"
     t.integer  "white_player_id"
-    t.integer  "creator_id",                 null: false
-    t.string   "description",     limit: 40
-    t.integer  "winner",          limit: 2
-    t.integer  "end_type",        limit: 2
-    t.integer  "score",           limit: 2
-    t.integer  "board_size",      limit: 2
-    t.integer  "handicap",        limit: 2
+    t.integer  "creator_id",                            null: false
+    t.string   "description",                limit: 40
+    t.integer  "end_type",                   limit: 2
+    t.integer  "board_size",                 limit: 2
+    t.integer  "handicap",                   limit: 2
     t.float    "komi"
-    t.string   "time_settings",   limit: 40
-    t.string   "rule_set",        limit: 20
-    t.integer  "status",          limit: 2
-    t.integer  "mode",            limit: 2
+    t.string   "time_settings",              limit: 40
+    t.string   "rule_set",                   limit: 20
+    t.integer  "status",                     limit: 2
+    t.integer  "mode",                       limit: 2
     t.datetime "started_at"
     t.datetime "finished_at"
     t.datetime "created_at"
     t.datetime "updated_at"
+    t.integer  "winner_id"
+    t.float    "black_score"
+    t.float    "white_score"
+    t.text     "dead_stones_serialized"
+    t.text     "territory_tiles_serialized"
+    t.integer  "black_dead_stone_count",     limit: 2
+    t.integer  "white_dead_stone_count",     limit: 2
   end
 
   add_index "games", ["black_player_id"], name: "index_games_on_black_player_id", using: :btree
   add_index "games", ["white_player_id"], name: "index_games_on_white_player_id", using: :btree
+  add_index "games", ["winner_id"], name: "index_games_on_winner_id", using: :btree
 
   create_table "users", force: true do |t|
     t.string   "username",                    null: false

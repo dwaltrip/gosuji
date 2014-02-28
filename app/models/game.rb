@@ -2,6 +2,7 @@ class Game < ActiveRecord::Base
   belongs_to :black_player, :class_name => 'User'
   belongs_to :white_player, :class_name => 'User'
   belongs_to :creator, :class_name => 'User'
+  belongs_to :winner, :class_name => 'User'
   has_many :boards, -> { order 'move_num ASC' }, inverse_of: :game
 
   validates :description, length: { maximum: 40 }
@@ -18,8 +19,15 @@ class Game < ActiveRecord::Base
   RANKED = 0
   NOT_RANKED = 1
 
+  # game.end_type constants
+  WIN_BY_SCORE = 1
+  WIN_BY_TIME = 2
+  RESIGN = 3
+  TIE = 4
+
   scope :open, lambda { where(:status => OPEN) }
   scope :active, lambda { where(:status => ACTIVE) }
+
 
   ##-- game model instance methods --##
 
@@ -41,8 +49,8 @@ class Game < ActiveRecord::Base
     active_board.move_num + 1
   end
 
-  def tiles_to_render(player, render_udpates_only)
-    if render_udpates_only
+  def tiles_to_render(player, updates_only=false)
+    if updates_only
       tiles_to_update = self.get_rulebook.tiles_to_update(self.player_color(player))
 
       # rulebook doesnt have knowledge of previous board_states
@@ -56,9 +64,40 @@ class Game < ActiveRecord::Base
     end
   end
 
-  def scoring_tiles_to_render
-    scorebot = self.get_scorebot
-    scorebot.changed_tiles
+  def tiles_to_render_during_scoring(overwrite_data_store=false)
+    scorebot = self.get_scorebot(overwrite_data_store)
+    self.active_board.pos_nums_and_tile_states(scorebot.changed_tiles)
+  end
+
+  def territory_status(tile_pos)
+    if self.finished?
+      if territory_tiles(:black).include?(tile_pos)
+        :black
+      elsif territory_tiles(:white).include?(tile_pos)
+        :white
+      end
+    else
+      self.get_scorebot.territory_status(tile_pos)
+    end
+  end
+
+  def territory_tiles(color)
+    if self.finished?
+      @territory_tiles = JSON.parse(self.territory_tiles_serialized) unless @territory_tiles
+      @territory_tiles[color.to_s] # json doesn't have symbols, need to convert to string
+    end
+  end
+
+  def has_dead_stone?(pos)
+    if self.finished?
+      self.dead_stones.include?(pos)
+    else
+      self.get_scorebot.has_dead_stone?(pos)
+    end
+  end
+
+  def dead_stones
+    @dead_stones ||= JSON.parse(self.dead_stones_serialized).to_set
   end
 
   def player_at_move(move_num)
@@ -114,12 +153,24 @@ class Game < ActiveRecord::Base
     self.captured_count(:black)
   end
 
+  def point_count(player)
+    if player == black_player
+      self.black_point_count
+    elsif player == white_player
+      self.white_point_count
+    end
+  end
+
   def black_point_count
-    0
+    (self.get_scorebot.black_point_count if self.end_game_scoring?) || (self.black_score if self.finished?)
   end
 
   def white_point_count
-    0
+    (self.get_scorebot.white_point_count if self.end_game_scoring?) || (self.white_score if self.finished?)
+  end
+
+  def point_difference
+    self.point_count(self.winner) - self.point_count(self.opponent(self.winner)) if self.winner != nil
   end
 
   def opponent(user)
@@ -137,7 +188,7 @@ class Game < ActiveRecord::Base
     if challenger.rank.nil? or creator.rank.nil? or challenger.rank == creator.rank
       coin_flip = rand()
       challenger_is_black = (coin_flip < 0.5)
-      self.komi = 6.5
+      self.komi = (6.5 if self.board_size == 19) || 0.5
     else
       challenger_is_black = (challenger.rank < creator.rank)
       self.handicap = (challenger.rank - creator.rank).abs
@@ -228,6 +279,80 @@ class Game < ActiveRecord::Base
     end
   end
 
+  def mark_stone(stone_pos, mark_as)
+    logger.info "-- Game.mark_stone -- stone_pos: #{stone_pos.inspect}, mark_as: #{mark_as.inspect}"
+
+    action_succeeded =
+      if mark_as == "dead"
+        self.get_scorebot.mark_as_dead(stone_pos)
+      elsif mark_as == "not_dead"
+        self.get_scorebot.mark_as_not_dead(stone_pos)
+      end
+
+    $redis.del(done_scoring_key(black_player), done_scoring_key(white_player)) if action_succeeded
+    action_succeeded
+  end
+
+  def update_done_scoring_flags(player)
+    if player == self.black_player || player == self.white_player
+      $redis.set(done_scoring_key(player), true)
+      $redis.expire(done_scoring_key(player), 600)
+
+      black_done, white_done = $redis.mget(done_scoring_key(black_player), done_scoring_key(white_player))
+
+      log_msg = "black_done: #{black_done.inspect}, white_done: #{white_done.inspect}"
+      logger.info "--- Game.update_done_scoring_flags --- #{log_msg}"
+      finish_game if black_done && white_done
+
+      true
+    else
+      false
+    end
+  end
+
+  def finish_game
+    scorebot = self.get_scorebot
+    self.black_score = scorebot.black_point_count
+    self.white_score = scorebot.white_point_count
+
+    self.end_type = WIN_BY_SCORE
+
+    if black_score > white_score
+      self.winner = black_player
+    elsif white_score > black_score
+      self.winner = white_player
+    else
+      self.end_type = TIE
+      self.winner = nil
+    end
+
+    db_vals_to_symbols = { GoApp::BLACK_STONE => :black, GoApp::WHITE_STONE => :white }
+    hash_to_serialize = Hash[scorebot.territory_tiles.map { |k, v| [db_vals_to_symbols[k], v] }]
+
+    self.territory_tiles_serialized = JSON.dump(hash_to_serialize)
+    self.dead_stones_serialized = JSON.dump(scorebot.dead_stones)
+    self.black_dead_stone_count = scorebot.dead_stone_count(:black)
+    self.white_dead_stone_count = scorebot.dead_stone_count(:white)
+
+    self.status = FINISHED
+    save
+  end
+
+  def done_scoring_key(player)
+    "game-#{self.id}-player-%s-done" % player.id
+  end
+
+  def point_details(player)
+    color = self.player_color(player)
+    details = { territory: self.territory_counts(color), captures: self.captured_count(color) }
+    details[:komi] = self.komi if color == :white
+    details
+  end
+
+  def territory_counts(color)
+    (territory_tiles(color).size if finished?) || get_scorebot.territory_counts(color)
+  end
+
   def create_next_board(new_move_pos, color)
     next_board = self.active_board.replicate_and_update(
       new_move_pos,
@@ -271,15 +396,41 @@ class Game < ActiveRecord::Base
     self.status == END_GAME_SCORING
   end
 
+  def tie?
+    self.end_type == TIE
+  end
+
+  def win_by_resign?
+    self.end_type == RESIGN
+  end
+
+  def win_by_score?
+    self.end_type == WIN_BY_SCORE
+  end
+
+  def win_by_time?
+    self.end_type == WIN_BY_TIME
+  end
+
   def captured_count(color)
     last_boards = boards_by_color(last_only = true)
 
-    unless last_boards[color].nil?
-      last_boards[color].captured_stones
-    else
-      logger.info "-- Game.captured_count: no previous board for #{color.inspect}"
-      0
-    end
+    opposing_color = (:black if color == :white) || (:white if color == :black)
+    dead_enemy_stone_count = (self.dead_stone_count(opposing_color) if self.finished?) || 0
+
+    captured_stone_count =
+      unless last_boards[color].nil?
+        last_boards[color].captured_stones
+      else
+        logger.info "-- Game.captured_count: no previous board for #{color.inspect}"
+        0
+      end
+
+    captured_stone_count + dead_enemy_stone_count
+  end
+
+  def dead_stone_count(color)
+    (self.black_dead_stone_count if color == :black) || (self.white_dead_stone_count if color == :white)
   end
 
   def get_rulebook(force_rebuild=false)
@@ -295,13 +446,16 @@ class Game < ActiveRecord::Base
     @rulebook
   end
 
-  def get_scorebot
-    #if (not @scorebot)
-    #  @scorebot = Scorebot.new(size: self.board_size, board: self.active_board.tiles, key: "game-#{self.id}")
-    #end
-    #@scorebot
-
-    @scorebot ||= Scorebot.new(size: self.board_size, board: self.active_board.tiles, key: "game-#{self.id}")
+  def get_scorebot(overwrite_data_store=false)
+    @scorebot ||= Scoring::Scorebot.new(
+      size: self.board_size,
+      board: self.active_board.tiles,
+      nosql_key: "game-#{self.id}",
+      black_captures: self.black_capture_count,
+      white_captures: self.white_capture_count,
+      komi: self.komi,
+      overwrite: overwrite_data_store
+    )
   end
 
   def played_a_move?(player)

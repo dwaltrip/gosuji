@@ -264,6 +264,10 @@ Task 3 Algorithm
                 * Merge map from dead enemy chains to connected member chains for meta-chain 2 into meta-chain 1
                 * Add the point counts together for a new total
     - shit.. what about the case where the marked stone is already in a meta-chain??
+    - if chain containing marked stone is already in a meta chain, then remove the chain, mark neighboring dead chains as alive,
+      and then create a new chain
+    - steps for removing chain from meta chain:
+        * ... maybe one day I'll finish these docs
 
 * Steps for marking a stone as alive:
     - Lookup the group that marked_pos belongs to

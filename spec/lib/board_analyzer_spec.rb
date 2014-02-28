@@ -14,6 +14,24 @@ CHAR_MAP = {
   '_' => GoApp::EMPTY_TILE
 }
 
+def build_scorebot(rows)
+  board = make_board(rows)
+  size = rows[0].gsub('|', '').length
+
+  rows.each_with_index do |row, i|
+    raise "Row #{i} has the incorrect number of tiles" if row.gsub('|', '').length != size
+  end
+  raise "Row inputs do not form a square board" if size**2 != board.length
+
+  Scoring::Scorebot.new(
+    board: board,
+    size: Integer(size),
+    test_mode: true,
+    black_captures: 0,
+    white_captures: 0
+  )
+end
+
 def build_board_analyzer(rows)
   board = make_board(rows)
   size = rows[0].gsub('|', '').length
@@ -40,14 +58,14 @@ end
 
 # single letters to save space
 G = Group = Struct.new(:color, :stones, :liberties, :neighbors)
-T = Territory = Struct.new(:tiles, :neighbors)
+T = TileZone = Struct.new(:tiles, :neighbors)
 B = BLACK
 W = WHITE
 
 
 describe Scoring::BoardAnalyzer do
 
-  describe ".build_stone_groups_and_territories" do
+  describe ".identify_stone_groups_and_tile_zones" do
 
     # this specific example board was copied from rulebook spec (along with much of the 'expected_groups' data)
     # open ./spec/lib/medium-example-10x10.png for easier human viewing of example board
@@ -97,7 +115,7 @@ describe Scoring::BoardAnalyzer do
       30 => G.new(B, [89, 99], [79],                                          { enemies: [19] })
     }
 
-    expected_territories = {
+    expected_tile_zones = {
       1  => T.new([0],      { white: [1, 4], black: [] }),
       2  => T.new([2],      { white: [1, 5], black: [] }),
       3  => T.new([4, 14],  { white: [5], black: [8] }),
@@ -166,33 +184,33 @@ describe Scoring::BoardAnalyzer do
       end
     end
 
-    it "identifies board territories, and the member tiles for each territory" do
-      expect(board_analyzer.territories.size).to eq(expected_territories.size)
+    it "identifies board tile zones, and the member tiles for each zone" do
+      expect(board_analyzer.tile_zones.size).to eq(expected_tile_zones.size)
 
-      expected_territories.values.each do |expected_territory|
-        actual_territory = board_analyzer.find_container(expected_territory.tiles.to_a[0])
+      expected_tile_zones.values.each do |expected_zone|
+        actual_tile_zone = board_analyzer.find_container(expected_zone.tiles.to_a[0])
 
-        expected_territory.tiles.each do |tile_pos|
-          expect(board_analyzer.find_container(tile_pos)).to eq(actual_territory)
+        expected_zone.tiles.each do |tile_pos|
+          expect(board_analyzer.find_container(tile_pos)).to eq(actual_tile_zone)
         end
 
-        expect(actual_territory.tiles).to eq(Set.new(expected_territory.tiles))
+        expect(actual_tile_zone.tiles).to eq(Set.new(expected_zone.tiles))
       end
     end
 
-    it "identifies the neighboring stone groups for each territory" do
-      expected_territories.values.each do |expected_territory|
-        actual_territory = board_analyzer.find_container(expected_territory.tiles.to_a[0])
+    it "identifies the neighboring stone groups for each tile zone" do
+      expected_tile_zones.values.each do |expected_zone|
+        actual_tile_zone = board_analyzer.find_container(expected_zone.tiles.to_a[0])
 
         [:black, :white].each do |color|
-          expect(actual_territory.neighboring_groups(color).size).to eq(expected_territory.neighbors[color].size)
+          expect(actual_tile_zone.neighboring_groups(color).size).to eq(expected_zone.neighbors[color].size)
 
-          expected_territory.neighbors[color].each do |neighboring_group_num|
+          expected_zone.neighbors[color].each do |neighboring_group_num|
             neighboring_group_first_stone_pos = expected_groups[neighboring_group_num].stones.to_a[0]
             expected_actual_neighboring_group = board_analyzer.find_container(neighboring_group_first_stone_pos)
 
-            expect(actual_territory.neighboring_groups(color)).to include(expected_actual_neighboring_group)
-            expect(expected_actual_neighboring_group.neighboring_territories).to include(actual_territory)
+            expect(actual_tile_zone.neighboring_groups(color)).to include(expected_actual_neighboring_group)
+            expect(expected_actual_neighboring_group.neighboring_tile_zones).to include(actual_tile_zone)
           end
         end
       end
@@ -211,7 +229,7 @@ describe Scoring::BoardAnalyzer do
       end
     end
 
-    context "with a size 1 territory" do
+    context "with a size 1 tile zone" do
       examples = [
         Example.new("in the center", [
           '|_|b|_|',
@@ -230,7 +248,7 @@ describe Scoring::BoardAnalyzer do
       it_ "returns the diagonally neighboring tile positions", examples
     end
 
-    context "with a size 2 territory" do
+    context "with a size 2 tile zone" do
       examples = [
         Example.new("in the center, vertically aligned", [
           '|_|_|b|_|',
@@ -274,10 +292,10 @@ describe Scoring::BoardAnalyzer do
   describe '.determine_and_set_eye_status' do
     Context = Struct.new(:description, :sub_contexts)
     SubContext = Struct.new(:description, :examples)
-    Example = Struct.new(:description, :board_rows, :territory_pos, :expected_to_be_eye)
+    Example = Struct.new(:description, :board_rows, :pos_of_tile_in_zone, :expected_to_be_eye)
 
     example_groups = [
-      Context.new("size 1 territory", [
+      Context.new("size 1 tile zone", [
 
         SubContext.new("in the corner", [
           Example.new("with 1 out of 1 digaonals occupied by enemy stones", [
@@ -340,7 +358,7 @@ describe Scoring::BoardAnalyzer do
         ])
       ]),
 
-      Context.new("size 2 territory", [
+      Context.new("size 2 tile zone", [
 
         SubContext.new("in the corner", [
           Example.new("with 1 out of 1 digaonals occupied by enemy stones", [
@@ -414,7 +432,7 @@ describe Scoring::BoardAnalyzer do
       ])
     ]
 
-    # static structure: array of contexts -> array of sub-contexts -> array of examples
+    # array of contexts -> array of sub-contexts -> array of examples
     example_groups.each do |current_context|
       context "sets eye status of #{current_context.description}" do
 
@@ -429,10 +447,10 @@ describe Scoring::BoardAnalyzer do
 
               it "#{example.description} as: #{eye_status}" do
                 board_analyzer = build_board_analyzer(example.board_rows)
-                territory = board_analyzer.find_container(example.territory_pos)
-                board_analyzer.determine_and_set_eye_status(territory)
+                tile_zone = board_analyzer.find_container(example.pos_of_tile_in_zone)
+                board_analyzer.determine_and_set_eye_status(tile_zone)
 
-                expect(territory.is_eye?).to eq(example.expected_to_be_eye)
+                expect(tile_zone.is_eye?).to eq(example.expected_to_be_eye)
               end
             end
 
@@ -455,7 +473,7 @@ describe Scoring::BoardAnalyzer do
         '|_|b|_|b|w|_|w|',
         '|_|_|_|b|w|w|_|'
       ])
-      finder = Proc.new { |k| board_analyzer.find_container(k) }
+      finder = Proc.new { |member_key| board_analyzer.find_container(member_key) }
 
       expected_groups = {
         1   => Group.new(WHITE, [1], [0, 8], { enemies: [2] }),
@@ -471,21 +489,21 @@ describe Scoring::BoardAnalyzer do
         11  => Group.new(WHITE, [41], [34, 40, 48], { enemies: [] })
       }
 
-      expected_territories = {
-        1   => Territory.new([0], { white: [1, 5], black: [] }),
-        2   => Territory.new([6], { white: [], black: [4, 6] }),
-        3   => Territory.new([8], { white: [1, 5], black: [2] }),
-        4   => Territory.new([12], { white: [], black: [4, 6] }),
-        5   => Territory.new([18], { white: [3], black: [4, 6] }),
-        6   => Territory.new([29], { white: [], black: [7, 8, 9] }),
-        7   => Territory.new([32], { white: [3, 10], black: [8] }),
-        8   => Territory.new([34], { white: [3, 11], black: [] }),
-        9   => Territory.new([35, 37, 42, 43, 44], { white: [], black: [7, 8, 9] }),
-        10  => Territory.new([40], { white: [3, 10, 11], black: [] }),
-        11  => Territory.new([48], { white: [10, 11], black: [] })
+      expected_tile_zones = {
+        1   => TileZone.new([0], { white: [1, 5], black: [] }),
+        2   => TileZone.new([6], { white: [], black: [4, 6] }),
+        3   => TileZone.new([8], { white: [1, 5], black: [2] }),
+        4   => TileZone.new([12], { white: [], black: [4, 6] }),
+        5   => TileZone.new([18], { white: [3], black: [4, 6] }),
+        6   => TileZone.new([29], { white: [], black: [7, 8, 9] }),
+        7   => TileZone.new([32], { white: [3, 10], black: [8] }),
+        8   => TileZone.new([34], { white: [3, 11], black: [] }),
+        9   => TileZone.new([35, 37, 42, 43, 44], { white: [], black: [7, 8, 9] }),
+        10  => TileZone.new([40], { white: [3, 10, 11], black: [] }),
+        11  => TileZone.new([48], { white: [10, 11], black: [] })
       }
 
-      Chain = Struct.new(:color, :groups, :neighbor_chains, :surrounded_territories, :neutral_territories)
+      Chain = Struct.new(:color, :groups, :neighbor_chains, :surrounded_zones, :neutral_zones)
       expected_chains = {
         1 => Chain.new(WHITE, [1, 5], [2, 5], [1], [3]),
         2 => Chain.new(BLACK, [2], [1, 3], [], [3]),
@@ -528,58 +546,58 @@ describe Scoring::BoardAnalyzer do
         end
       end
 
-      it "identifes neighboring territories" do
+      it "identifes neighboring tile zones" do
         expected_chains.values.each do |expected_chain|
           actual_chain = finder.call(finder.call(expected_groups[expected_chain.groups[0]].stones[0]))
 
-          expect(actual_chain.surrounded_territories.size).to eq(expected_chain.surrounded_territories.size)
-          expect(actual_chain.neutral_territories.size).to eq(expected_chain.neutral_territories.size)
+          expect(actual_chain.surrounded_zones.size).to eq(expected_chain.surrounded_zones.size)
+          expect(actual_chain.neutral_zones.size).to eq(expected_chain.neutral_zones.size)
 
-          expected_chain.surrounded_territories.each do |expected_territory_id|
-            actual_expected_territory = finder.call(expected_territories[expected_territory_id].tiles[0])
-            expect(actual_chain.surrounded_territories).to include(actual_expected_territory)
+          expected_chain.surrounded_zones.each do |expected_tile_zone_id|
+            actual_expected_tile_zone = finder.call(expected_tile_zones[expected_tile_zone_id].tiles[0])
+            expect(actual_chain.surrounded_zones).to include(actual_expected_tile_zone)
           end
 
-          expected_chain.neutral_territories.each do |expected_territory_id|
-            actual_expected_territory = finder.call(expected_territories[expected_territory_id].tiles[0])
-            expect(actual_chain.neutral_territories).to include(actual_expected_territory)
+          expected_chain.neutral_zones.each do |expected_tile_zone_id|
+            actual_expected_tile_zone = finder.call(expected_tile_zones[expected_tile_zone_id].tiles[0])
+            expect(actual_chain.neutral_zones).to include(actual_expected_tile_zone)
           end
         end
       end
     end
 
-    shared_examples "prepares scoring related chain data" do |board_analyzer, chain_data|
-      make_chain = Proc.new do |stone_pos, alive_status, territory_points, eye_pos_list, fake_eye_pos_list|
+    shared_examples "prepares chain data related to scoring" do |board_analyzer, chain_data|
+      make_chain = Proc.new do |stone_pos, alive_status, territory_counts, eye_pos_list, fake_eye_pos_list|
         OpenStruct.new(
           pos_of_a_member_stone: stone_pos,
           alive_status: alive_status,
-          territory_points: territory_points,
+          territory_counts: territory_counts,
           tile_positions_for_eyes: eye_pos_list,
           tile_positions_for_fake_eyes: fake_eye_pos_list
         )
       end
-      finder = Proc.new { |k| board_analyzer.find_container(k) }
+      finder = Proc.new { |member_key| board_analyzer.find_container(member_key) }
       expected_chains = chain_data.map { |data| make_chain.call(*data) }
 
-      it "marks which surrounded territories are eyes" do
+      it "marks which surrounded zones are eyes" do
         expected_chains.each do |expected_chain|
           # tile pos of stone -> StoneGroup instance -> Chain instance
           actual_chain = finder.call(finder.call(expected_chain.pos_of_a_member_stone))
 
           expected_chain.tile_positions_for_eyes.each do |tile_pos|
-            territory = finder.call(tile_pos)
+            tile_zone = finder.call(tile_pos)
 
-            expect(actual_chain.surrounded_territories).to include(territory)
-            expect(actual_chain.has_eye?(territory)).to be_true
-            expect(territory.is_eye?).to be_true
+            expect(actual_chain.surrounded_zones).to include(tile_zone)
+            expect(actual_chain.has_eye?(tile_zone)).to be_true
+            expect(tile_zone.is_eye?).to be_true
           end
 
           expected_chain.tile_positions_for_fake_eyes.each do |tile_pos|
-            territory = finder.call(tile_pos)
+            tile_zone = finder.call(tile_pos)
 
-            expect(actual_chain.surrounded_territories).to include(territory)
-            expect(actual_chain.has_eye?(territory)).to be_false
-            expect(territory.is_eye?).to be_false
+            expect(actual_chain.surrounded_zones).to include(tile_zone)
+            expect(actual_chain.has_eye?(tile_zone)).to be_false
+            expect(tile_zone.is_eye?).to be_false
           end
         end
       end
@@ -592,11 +610,11 @@ describe Scoring::BoardAnalyzer do
         end
       end
 
-      it "computes territory points for each chain" do
+      it "computes territory counts for each chain" do
         expected_chains.each do |expected_chain|
           # tile pos of stone -> StoneGroup instance -> Chain instance
           actual_chain = finder.call(finder.call(expected_chain.pos_of_a_member_stone))
-          expect(actual_chain.territory_points).to eq(expected_chain.territory_points)
+          expect(actual_chain.territory_counts).to eq(expected_chain.territory_counts)
         end
       end
     end
@@ -618,7 +636,7 @@ describe Scoring::BoardAnalyzer do
         [44, false,  0, [],      []]
       ]
 
-      it_ "prepares scoring related chain data", board_analyzer, data_for_expected_chains
+      it_ "prepares chain data related to scoring", board_analyzer, data_for_expected_chains
     end
 
     context "with example #3" do
@@ -640,7 +658,299 @@ describe Scoring::BoardAnalyzer do
         [72, true, 3, [63, 77],        [73]]
       ]
 
-      it_ "prepares scoring related chain data", board_analyzer, data_for_expected_chains
+      it_ "prepares chain data related to scoring", board_analyzer, data_for_expected_chains
+    end
+  end
+
+end
+
+describe Scoring::Scorebot, focus: true do
+
+  TERRITORY_STATUS = { :black => :black, :white => :white }
+  COLORS = [:black, :white]
+
+  size = 13
+  num_tiles = size**2
+  # see spec/lib/scoring-example-with-labels.png for a nice image matching this below
+  board_rows = [
+    '|_|b|b|_|b|w|_|_|w|_|_|b|_|',
+    '|w|w|b|w|b|w|_|_|w|w|b|_|b|',
+    '|_|w|w|b|w|w|_|_|w|b|b|b|b|',
+    '|_|_|_|b|_|_|w|w|b|_|_|_|_|',
+    '|w|w|w|_|_|_|w|_|b|_|_|_|_|',
+    '|b|b|w|_|_|_|w|b|b|_|_|_|_|',
+    '|_|b|w|w|w|w|b|b|_|_|_|b|b|',
+    '|_|b|b|b|w|_|w|b|_|b|b|w|b|',
+    '|b|b|b|b|b|w|w|w|b|b|w|w|b|',
+    '|_|b|w|w|w|b|b|w|w|b|w|w|w|',
+    '|w|w|b|_|w|b|_|b|w|w|_|_|b|',
+    '|_|b|w|w|b|_|_|b|_|w|w|b|w|',
+    '|_|w|b|b|b|b|b|b|b|w|_|b|_|'
+  ]
+
+  initial_territory_tiles = {
+    black: [12, 24, 48, 49, 50, 51, 61, 62, 63, 64, 74, 75, 76, 77, 86, 87, 88, 99, 136, 148, 149],
+    white: [6, 7, 19, 20, 32, 33, 96]
+  }
+
+  initial_scores = Hash[initial_territory_tiles.map { |color, tiles| [color, tiles.size] }]
+  all_territory_tiles = initial_territory_tiles.values.inject([]) { |arr, tiles| arr.concat(tiles) }
+
+  context "when performing the initial scoring analysis (no stones have been marked)" do
+    scorebot = build_scorebot(board_rows)
+
+    COLORS.each do |color|
+      it ".#{color}_point_count returns the number of points for #{color}" do
+        expect(scorebot.send("#{color}_point_count")).to eq(initial_scores[color])
+      end
+    end
+
+    it ".changed_tiles returns the list of all territory tiles" do
+      expect(scorebot.changed_tiles.sort).to eq(all_territory_tiles.sort)
+    end
+
+    it ".has_dead_stone? returns false for every tile" do
+      (0...num_tiles).each do |tile_pos|
+        expect(scorebot.has_dead_stone?(tile_pos)).to be_false
+      end
+    end
+
+    describe ".territory_status" do
+      COLORS.each do |color|
+        it "returns #{TERRITORY_STATUS[color]} for surrounded tiles of #{color} chains that are alive" do
+          (0...num_tiles).each do |tile_pos|
+            if initial_territory_tiles[color].include?(tile_pos)
+              expect(scorebot.territory_status(tile_pos)).to eq(TERRITORY_STATUS[color])
+            end
+          end
+        end
+      end
+
+      it "returns nil for all other tiles" do
+        (0...num_tiles).each do |tile_pos|
+          expect(scorebot.territory_status(tile_pos)).to be_nil unless all_territory_tiles.include?(tile_pos)
+        end
+      end
+    end
+
+    describe ".territory_counts" do
+      COLORS.each do |color|
+        it "returns the territory tile count for #{color}" do
+          expect(scorebot.territory_counts(color)).to eq(initial_territory_tiles[color].length)
+        end
+      end
+    end
+
+    it "doesnt create any MetaChains" do
+      expect(scorebot.instance_variable_get(:@board).meta_chains.size).to eq(0)
+    end
+  end
+
+  context "when marking a chain as dead" do
+
+    def get_scorebot(board_rows, params={})
+      scorebot = build_scorebot(board_rows)
+      scorebot.mark_as_dead(params[:pos]) if params[:mark_as_dead]
+      scorebot
+    end
+
+    stone_to_mark = 2
+    dead_stones = { black: [1, 2, 4, 15, 17], white: [] }
+    new_territory = { black: [], white: [0, 1, 2, 3, 4, 15, 17] }
+    changed_tiles = [0, 1, 2, 3, 4, 15, 17]
+
+    opposing_colors = { :black => :white, :white => :black }
+    score_counts = {}
+    initial_scores.each do |color, score|
+      score_counts[color] = score + dead_stones[opposing_colors[color]].size + new_territory[color].size
+    end
+
+    it ".mark_as_dead returns true when given the position of an alive stone" do
+      scorebot = get_scorebot(board_rows)
+      expect(scorebot.mark_as_dead(stone_to_mark)).to eq(true)
+    end
+
+    it ".mark_as_dead returns false when given the position of a stone from an already marked dead chain" do
+      scorebot = get_scorebot(board_rows, pos: stone_to_mark, mark_as_dead: true)
+      expect(scorebot.mark_as_dead(15)).to eq(false)
+    end
+
+    it ".mark_as_dead returns false when given the position of an empty tile" do
+      scorebot = get_scorebot(board_rows, pos: stone_to_mark, mark_as_dead: true)
+      expect(scorebot.mark_as_dead(56)).to eq(false)
+    end
+
+    it ".changed_tiles returns only the tiles affected by the new dead chain" do
+      scorebot = get_scorebot(board_rows, pos: stone_to_mark, mark_as_dead: true)
+      expect(scorebot.changed_tiles.to_a.sort).to eq(changed_tiles)
+    end
+
+    COLORS.each do |color|
+      it ".#{color}_point_count returns the number of points for #{color}" do
+        scorebot = get_scorebot(board_rows, pos: stone_to_mark, mark_as_dead: true)
+        expect(scorebot.send("#{color}_point_count")).to eq(score_counts[color])
+      end
+    end
+
+    it ".has_dead_stone? returns true only for stones from the marked chain" do
+      scorebot = get_scorebot(board_rows, pos: stone_to_mark, mark_as_dead: true)
+
+      (0...num_tiles).each do |tile_pos|
+        if dead_stones[:black].include?(tile_pos) || dead_stones[:white].include?(tile_pos)
+          expect(scorebot.has_dead_stone?(tile_pos)).to eq(true)
+        else
+          expect(scorebot.has_dead_stone?(tile_pos)).to eq(false)
+        end
+      end
+    end
+
+    context "updates the territory data" do
+      # get_scorebot method is not available in this nested block, not sure why. don't fully understand rspec scoping
+      scorebot = build_scorebot(board_rows)
+      scorebot.mark_as_dead(stone_to_mark)
+
+      updated_territory = Hash[initial_territory_tiles.map { |color, tiles| [color, tiles + new_territory[color]] }]
+      all_updated_territory = updated_territory.values.inject([]) { |arr, tiles| arr + tiles }
+
+      describe ".territory_status" do
+        COLORS.each do |color|
+          it" returns #{TERRITORY_STATUS[color]} for surrounded tiles of #{color} chains that are alive" do
+            updated_territory[color].each do |tile_pos|
+              expect(scorebot.territory_status(tile_pos)).to eq(TERRITORY_STATUS[color])
+            end
+          end
+        end
+
+        it "returns nil for all other tiles" do
+          (0...num_tiles).each do |tile_pos|
+            expect(scorebot.territory_status(tile_pos)).to be_nil unless all_updated_territory.include?(tile_pos)
+          end
+        end
+      end
+
+      COLORS.each do |color|
+        it ".territory_counts returns the territory tile count for #{color}" do
+          expect(scorebot.territory_counts(color)).to eq(updated_territory[color].length)
+        end
+      end
+    end
+
+    it "creates one MetaChain" do
+      scorebot = get_scorebot(board_rows, pos: stone_to_mark, mark_as_dead: true)
+      expect(scorebot.instance_variable_get(:@board).meta_chains.size).to eq(1)
+    end
+  end
+
+  context "when marking the only dead chain as alive" do
+    scorebot = build_scorebot(board_rows)
+    stone_to_mark = 2
+    changed_tiles = [0, 1, 2, 3, 4, 15, 17]
+
+    before(:all) do
+      scorebot.mark_as_dead(stone_to_mark)
+      scorebot.mark_as_not_dead(stone_to_mark)
+    end
+
+    COLORS.each do |color|
+      it ".#{color}_point_count returns the number of points for #{color}" do
+        expect(scorebot.send("#{color}_point_count")).to eq(initial_scores[color])
+      end
+    end
+
+    it ".changed_tiles returns only the tiles affected by the no longer dead chain" do
+      expect(scorebot.changed_tiles.to_a.sort).to eq(changed_tiles)
+    end
+
+    it ".has_dead_stone? returns false for every tile" do
+      (0...num_tiles).each do |tile_pos|
+        expect(scorebot.has_dead_stone?(tile_pos)).to be_false
+      end
+    end
+
+    describe ".territory_status" do
+      COLORS.each do |color|
+        it "returns #{TERRITORY_STATUS[color]} for surrounded tiles of #{color} chains that are alive" do
+          (0...num_tiles).each do |tile_pos|
+            if initial_territory_tiles[color].include?(tile_pos)
+              expect(scorebot.territory_status(tile_pos)).to eq(TERRITORY_STATUS[color])
+            end
+          end
+        end
+      end
+
+      it "returns nil for all other tiles" do
+        (0...num_tiles).each do |tile_pos|
+          expect(scorebot.territory_status(tile_pos)).to be_nil unless all_territory_tiles.include?(tile_pos)
+        end
+      end
+    end
+
+    describe ".territory_counts" do
+      COLORS.each do |color|
+        it ".territory_counts returns the territory tile count for #{color}" do
+          expect(scorebot.territory_counts(color)).to eq(initial_territory_tiles[color].length)
+        end
+      end
+    end
+
+    it "has no remaining any MetaChains" do
+      expect(scorebot.instance_variable_get(:@board).meta_chains.size).to eq(0)
+    end
+  end
+
+  context "with slightly more complex sequences of marking dead/not-dead", focus: true do
+    first_stone_to_mark = 130
+    second_stone_to_mark = 132
+
+    new_territory_tiles = { black: [117, 130, 131, 143, 144, 156, 78, 91], white: [132, 133] }
+    captures = { black: 3, white: 1 }
+    single_eye_tiles = [78, 91] # becomes territory as a result of marking as dead first_stone_to_mark
+
+    context "when a reachable enemy chain of a single eye-chain is marked dead" do
+      scorebot = build_scorebot(board_rows)
+      before(:all) { scorebot.mark_as_dead(first_stone_to_mark) }
+
+      it "marks the eye of a single-eye chain as territory points" do
+        single_eye_tiles.each { |tile_pos| expect(scorebot.territory_status(tile_pos)).to be(:black) }
+      end
+
+      it "records the new territory tiles to the list of changed tiles" do
+        single_eye_tiles.each { |tile_pos| expect(scorebot.changed_tiles).to include(tile_pos) }
+      end
+
+      it "updates the score to reflect the new territory point tiles" do
+        black_points = initial_scores[:black] + new_territory_tiles[:black].size + captures[:black]
+        expect(scorebot.black_point_count).to eq(black_points)
+        expect(scorebot.white_point_count).to eq(initial_scores[:white])
+      end
+
+    end
+
+    context "and then a different neighbor of the dead chain is marked dead" do
+      scorebot = build_scorebot(board_rows)
+      before(:all) do
+        scorebot.mark_as_dead(first_stone_to_mark)
+        scorebot.mark_as_dead(second_stone_to_mark)
+      end
+
+      it "unmarks the eye of a single-eye chains as territory points" do
+        single_eye_tiles.each { |tile_pos| expect(scorebot.territory_status(tile_pos)).to be_nil }
+      end
+
+      it "records the former territory tiles to the list of changed tiles" do
+        single_eye_tiles.each { |tile_pos| expect(scorebot.changed_tiles).to include(tile_pos) }
+      end
+
+      it "updates the score to reflect the new as well as revoked territory point tiles" do
+        white_points = initial_scores[:white] + new_territory_tiles[:white].size + captures[:white]
+        expect(scorebot.black_point_count).to eq(initial_scores[:black])
+        expect(scorebot.white_point_count).to eq(white_points)
+      end
+
+      it "has only one remaining MetaChain" do
+        expect(scorebot.instance_variable_get(:@board).meta_chains.size).to eq(1)
+      end
+
     end
   end
 
