@@ -7,25 +7,27 @@
   </div>
 
   <div id='board_container'>
-    <div id='game-actions-container'>
-      <%= form_tag({ action: :pass_turn }, { id: 'pass-turn-form' }) do %>
-        <%= submit_tag 'Pass', class: 'button', id: 'pass-button', disabled: current_user != @game.active_player %>
-      <% end %>
+    <% unless @game.finished? %>
+      <div id='game-actions-container'>
+        <%= form_tag({ action: :pass_turn }, { id: 'pass-turn-form' }) do %>
+          <%= submit_tag 'Pass', class: 'button', id: 'pass-button', disabled: current_user != @game.active_player %>
+        <% end %>
 
-      <%= form_tag({ action: :request_undo }, { id: 'request-undo-form', remote: true }) do %>
-        <%= submit_tag 'Undo', class: 'button', id: 'undo-button', disabled: !@game.played_a_move?(current_user) %>
-        <%= hidden_field_tag 'connection_id', @connection_id %>
-      <% end %>
+        <%= form_tag({ action: :request_undo }, { id: 'request-undo-form', remote: true }) do %>
+          <%= submit_tag 'Undo', class: 'button', id: 'undo-button', disabled: !@game.played_a_move?(current_user) %>
+          <%= hidden_field_tag 'connection_id', @connection_id %>
+        <% end %>
 
-      <%= form_tag({ action: :done_scoring }, { id: 'done-scoring-form' }) do %>
-        <% css_classes = ["button", ("hidden" if !@game.end_game_scoring?)] %>
-        <%= submit_tag 'Done', name: 'done', class: css_classes.compact.join(" "), id: "done-scoring-button" %>
-      <% end %>
+        <%= form_tag({ action: :done_scoring }, { id: 'done-scoring-form' }) do %>
+          <% css_classes = ["button", ("hidden" if !@game.end_game_scoring?)] %>
+          <%= submit_tag 'Done', name: 'done', class: css_classes.compact.join(" "), id: "done-scoring-button" %>
+        <% end %>
 
-      <%= form_tag({ action: :resign }, { id: 'resign-form' }) do %>
-        <%= submit_tag 'Resign', name: 'resign', class: "button", id: "resign-button" %>
-      <% end %>
-    </div>
+        <%= form_tag({ action: :resign }, { id: 'resign-form' }) do %>
+          <%= submit_tag 'Resign', name: 'resign', class: "button", id: "resign-button" %>
+        <% end %>
+      </div>
+    <% end %>
 
     <%= form_tag({ action: :new_move }, { id: 'board-form' }) do %>
       <table id='board-table' class='board-table'>

@@ -113,7 +113,7 @@ class GamesController < ApplicationController
       send_event_data_to_other_clients(event_name: "game-finished", payload: data)
       respond_to { |format| format.json { render 'games/finalize_game' } }
     else
-      render nothing :true
+      render nothing: true
     end
   end
 

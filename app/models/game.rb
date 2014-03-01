@@ -175,7 +175,7 @@ class Game < ActiveRecord::Base
     elsif user == white_player
       black_player
     else
-      logger.warn "-- Game.opponent: #{user.username} is not playing in game id #{id}"
+      logger.warn "-- Game.opponent (game.id: #{id}) -- weird 'user' input, inspecting: #{user.inspect}"
       nil
     end
   end
@@ -251,7 +251,7 @@ class Game < ActiveRecord::Base
   end
 
   def undo(undoing_player)
-    if [ACTIVE, END_GAME_SCORING].include?(status) && played_a_move?(undoing_player)
+    if (active? || end_game_scoring?) && played_a_move?(undoing_player)
       prev_board = active_board
       prev_invalid_moves = get_rulebook.invalid_moves
 
@@ -276,21 +276,25 @@ class Game < ActiveRecord::Base
   end
 
   def mark_stone(stone_pos, mark_as)
-    logger.info "-- Game.mark_stone -- stone_pos: #{stone_pos.inspect}, mark_as: #{mark_as.inspect}"
+    if end_game_scoring?
+      logger.info "-- Game.mark_stone -- stone_pos: #{stone_pos.inspect}, mark_as: #{mark_as.inspect}"
 
-    action_succeeded =
-      if mark_as == "dead"
-        get_scorebot.mark_as_dead(stone_pos)
-      elsif mark_as == "not_dead"
-        get_scorebot.mark_as_not_dead(stone_pos)
-      end
+      action_succeeded =
+        if mark_as == "dead"
+          get_scorebot.mark_as_dead(stone_pos)
+        elsif mark_as == "not_dead"
+          get_scorebot.mark_as_not_dead(stone_pos)
+        end
 
-    $redis.del(done_scoring_key(black_player), done_scoring_key(white_player)) if action_succeeded
-    action_succeeded
+      $redis.del(done_scoring_key(black_player), done_scoring_key(white_player)) if action_succeeded
+      action_succeeded
+    else
+      false
+    end
   end
 
   def update_done_scoring_flags(player)
-    if has_player?(player)
+    if has_player?(player) && end_game_scoring?
       $redis.set(done_scoring_key(player), true)
       $redis.expire(done_scoring_key(player), 600)
 
