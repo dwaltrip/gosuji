@@ -1,7 +1,7 @@
 class GamesController < ApplicationController
   before_filter :require_login, :except => :index
   before_action :find_game, only: [:show, :join, :new_move, :pass_turn,
-    :undo_turn, :request_undo, :mark_stones, :done_scoring]
+    :undo_turn, :request_undo, :mark_stones, :done_scoring, :resign]
 
   def index
     @open_games = Game.open.order('created_at DESC')
@@ -97,16 +97,25 @@ class GamesController < ApplicationController
     if @game.update_done_scoring_flags(current_user)
       if @game.finished?
         # would be nice to not have to parse this (look into RABL, which allows skipping the hash to json string step)
-        data = JSON.parse(render_to_string(template: 'games/done_scoring', formats: [:json], locals: { game: @game }))
+        data = JSON.parse(render_to_string(template: 'games/finalize_game', formats: [:json]))
         send_event_data_to_other_clients(event_name: "game-finished", payload: data)
       end
 
-      respond_to { |format| format.json { render 'games/done_scoring', locals: { game: @game } } }
+      respond_to { |format| format.json { render 'games/finalize_game' } }
     else
       render nothing: true
     end
   end
 
+  def resign
+    if @game.resign(current_user)
+      data = JSON.parse(render_to_string(template: 'games/finalize_game', formats: [:json]))
+      send_event_data_to_other_clients(event_name: "game-finished", payload: data)
+      respond_to { |format| format.json { render 'games/finalize_game' } }
+    else
+      render nothing :true
+    end
+  end
 
   private
 

@@ -54,8 +54,8 @@ module GamesHelper
   def game_finished_message(game)
     lines_of_content = [
       "The game is over.",
-      (score_details_message(game, game.white_player) unless game.win_by_resign?),
-      (score_details_message(game, game.black_player) unless game.win_by_resign?),
+      (score_details_message(game, game.white_player) if game.win_by_score?),
+      (score_details_message(game, game.black_player) if game.win_by_score?),
       "Final result: #{final_result_message(game)}"
     ].compact
 

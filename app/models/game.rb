@@ -49,6 +49,10 @@ class Game < ActiveRecord::Base
     active_board.move_num + 1
   end
 
+  def has_player?(player)
+    black_player == player || white_player == player
+  end
+
   def tiles_to_render(player, updates_only=false)
     if updates_only
       tiles_to_update = get_rulebook.tiles_to_update(player_color(player))
@@ -70,13 +74,13 @@ class Game < ActiveRecord::Base
   end
 
   def territory_status(tile_pos)
-    if finished?
+    if finished? && win_by_score?
       if territory_tiles(:black).include?(tile_pos)
         :black
       elsif territory_tiles(:white).include?(tile_pos)
         :white
       end
-    else
+    elsif end_game_scoring?
       get_scorebot.territory_status(tile_pos)
     end
   end
@@ -89,9 +93,9 @@ class Game < ActiveRecord::Base
   end
 
   def has_dead_stone?(pos)
-    if finished?
+    if finished? && win_by_score?
       dead_stones.include?(pos)
-    else
+    elsif end_game_scoring?
       get_scorebot.has_dead_stone?(pos)
     end
   end
@@ -162,7 +166,7 @@ class Game < ActiveRecord::Base
   end
 
   def point_difference
-    point_count(winner) - point_count(opponent(winner)) if winner != nil
+    point_count(winner) - point_count(opponent(winner)) if end_type == WIN_BY_SCORE
   end
 
   def opponent(user)
@@ -286,7 +290,7 @@ class Game < ActiveRecord::Base
   end
 
   def update_done_scoring_flags(player)
-    if player == black_player || player == white_player
+    if has_player?(player)
       $redis.set(done_scoring_key(player), true)
       $redis.expire(done_scoring_key(player), 600)
 
@@ -294,7 +298,7 @@ class Game < ActiveRecord::Base
 
       log_msg = "black_done: #{black_done.inspect}, white_done: #{white_done.inspect}"
       logger.info "--- Game.update_done_scoring_flags --- #{log_msg}"
-      finish_game if black_done && white_done
+      finish_scoring if black_done && white_done
 
       true
     else
@@ -302,7 +306,7 @@ class Game < ActiveRecord::Base
     end
   end
 
-  def finish_game
+  def finish_scoring
     scorebot = get_scorebot
     self.black_score = scorebot.black_point_count
     self.white_score = scorebot.white_point_count
@@ -318,16 +322,41 @@ class Game < ActiveRecord::Base
       self.winner = nil
     end
 
-    db_vals_to_symbols = { GoApp::BLACK_STONE => :black, GoApp::WHITE_STONE => :white }
-    hash_to_serialize = Hash[scorebot.territory_tiles.map { |k, v| [db_vals_to_symbols[k], v] }]
+    finalize_game
+  end
 
-    self.territory_tiles_serialized = JSON.dump(hash_to_serialize)
-    self.dead_stones_serialized = JSON.dump(scorebot.dead_stones)
-    self.black_dead_stone_count = scorebot.dead_stone_count(:black)
-    self.white_dead_stone_count = scorebot.dead_stone_count(:white)
+  def resign(player)
+    if has_player?(player) && (active? || end_game_scoring?)
+      self.black_score = nil
+      self.white_score = nil
+
+      self.end_type = RESIGN
+      self.winner = opponent(player)
+
+      finalize_game
+      true
+    else
+      false
+    end
+  end
+
+  def finalize_game
+    territory_tiles_to_serialize =
+      if end_game_scoring?
+        { black: get_scorebot.territory_tiles[GoApp::BLACK_STONE],
+          white: get_scorebot.territory_tiles[GoApp::WHITE_STONE] }
+      else
+        { black: [], white: [] }
+      end
+
+    self.territory_tiles_serialized = JSON.dump(territory_tiles_to_serialize)
+    self.dead_stones_serialized = JSON.dump((get_scorebot.dead_stones if end_game_scoring?) || [])
+    self.black_dead_stone_count = (get_scorebot.dead_stone_count(:black) if end_game_scoring?)
+    self.white_dead_stone_count = (get_scorebot.dead_stone_count(:white) if end_game_scoring?)
 
     self.status = FINISHED
     save
+    clear_temp_scoring_data
   end
 
   def done_scoring_key(player)
@@ -370,6 +399,10 @@ class Game < ActiveRecord::Base
   def get_ko_position(player)
     logger.info "-- Game.get_ko_position -- get_rulebook.ko_position: #{get_rulebook.ko_position.inspect}"
     get_rulebook.ko_position(player_color(player))
+  end
+
+  def show_score?
+    end_game_scoring? || (finished? && win_by_score?)
   end
 
   def active?
@@ -452,6 +485,10 @@ class Game < ActiveRecord::Base
       komi: komi,
       overwrite: overwrite_data_store
     )
+  end
+
+  def clear_temp_scoring_data
+    $redis.del("game-#{id}", done_scoring_key(black_player), done_scoring_key(white_player))
   end
 
   def played_a_move?(player)

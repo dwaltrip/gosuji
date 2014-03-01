@@ -7,7 +7,7 @@
     Captures -- Black: <span id='black-capture-count'><%= game.black_capture_count %></span>
     White: <span id='white-capture-count'><%= game.white_capture_count %></span>
 
-    <% div_params = [[:id, 'score-container'], ([:class, 'hidden'] if game.active?)] %>
+    <% div_params = [[:id, 'score-container'], ([:class, 'hidden'] unless game.show_score?)] %>
     <%= content_tag :div, Hash[div_params.compact] do %>
       Score -- Black: <span id='black-point-count'><%= game.black_point_count %></span>
       White: <span id='white-point-count'><%= game.white_point_count %></span>

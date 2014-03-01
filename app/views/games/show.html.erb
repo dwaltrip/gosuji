@@ -17,10 +17,13 @@
         <%= hidden_field_tag 'connection_id', @connection_id %>
       <% end %>
 
-
       <%= form_tag({ action: :done_scoring }, { id: 'done-scoring-form' }) do %>
         <% css_classes = ["button", ("hidden" if !@game.end_game_scoring?)] %>
         <%= submit_tag 'Done', name: 'done', class: css_classes.compact.join(" "), id: "done-scoring-button" %>
+      <% end %>
+
+      <%= form_tag({ action: :resign }, { id: 'resign-form' }) do %>
+        <%= submit_tag 'Resign', name: 'resign', class: "button", id: "resign-button" %>
       <% end %>
     </div>
 
@@ -29,6 +32,12 @@
         <%= render partial: 'games/tile', collection: @tiles %>
       </table>
     <% end %>
+  </div>
+</div>
+
+<div id="resign-confirmation-wrapper" class='hidden'>
+  <div class='confirmation-content'>
+    <%= render 'resign_confirmation_dialog' %>
   </div>
 </div>
 

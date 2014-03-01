@@ -28,8 +28,19 @@ $(document).ready(function() {
         modal.close();
     });
 
+    // resign
+    $(modal.selector).on('click', '.confirmation-content .yes-button', function() {
+        ajax_post_helper($('#resign-form'), null, finalize_game_callback);
+        modal.close();
+    });
+    $(modal.selector).on('click', '.confirmation-content .cancel-button', function() { modal.close(); });
+    $('#resign-form').on('submit.resign', function(e) {
+        e.preventDefault();
+        modal.open({ content: $('#resign-confirmation-wrapper .confirmation-content').clone() });
+    });
+
     // for closing notifications
-    $(modal.selector).on('click.ok_button', '.ok-button', function(e) { modal.close(); });
+    $(modal.selector).on('click.ok_button', '#notification-container .ok-button', function(e) { modal.close(); });
 
     socket = get_socket();
     socket.emit('subscribe-to-updates', { room_id: window.room_id });
@@ -105,7 +116,7 @@ function setup_scoring(data) {
     $('#done-scoring-form').on('submit.done_scoring', function(e) {
         e.preventDefault();
         $('#done-scoring-button').prop('disabled', true);
-        ajax_post_helper(this, null, done_scoring_callback);
+        ajax_post_helper(this, null, finalize_game_callback);
     });
 
     modal.open({ content: data.instructions });
@@ -113,16 +124,17 @@ function setup_scoring(data) {
 }
 
 
-function done_scoring_callback(data) {
-    console.log('-- done_scoring_callback -- data:', data);
+function finalize_game_callback(data) {
+    console.log('-- finalize_game_callback -- data:', data);
 
     $('#status-message').text(data.status_message);
 
     if (data.game_finished) {
-        $('.tile-container').removeClass('alive-stone', 'dead-stone');
+        $('.tile-container').removeClass('alive-stone dead-stone clickable playable');
         $('#done-scoring-button').prop('disabled', true);
         $('#undo-button').prop('disabled', true);
         $('#resign-button').prop('disabled', true);
+        $('#pass-button').prop('disabled', true);
 
         modal.open({ content: data.game_finished_message });
     }
@@ -173,7 +185,7 @@ function get_socket() {
 
     sockjs.on('game-finished', function(data) {
         console.log("inside sockjs.on('game-finished', cb) callback, data= " + JSON.stringify(data));
-        done_scoring_callback(data);
+        finalize_game_callback(data);
     });
 
     return sockjs;
