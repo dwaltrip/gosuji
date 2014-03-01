@@ -249,7 +249,7 @@ feature "gameplay actions" do
 
     # both players pass, to enter "end game scoring" phase
     as(players) do |player|
-      expect(page).to have_status_message(move_num: move_count)
+      expect(page).to have_status_message(move_number: move_count)
       click_button "Pass"
       move_count += 1
     end

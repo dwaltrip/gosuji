@@ -77,12 +77,16 @@ class GamesController < ApplicationController
   end
 
   def request_undo
-    # the move_num value created here is verified in games#undo_turn if the undo request is approved
-    approval_form = render_to_string(partial: 'undo_approval_form', locals: {
-      undo_data: encrypt({ move_num: @game.move_num })
-    })
-    send_event_data_to_other_clients(event_name: "undo-request", payload: { approval_form: approval_form })
-    respond_to { |format| format.js }
+    if @game.active? && @game.has_player?(current_user)
+      # the move_num value created here is verified in games#undo_turn if the undo request is approved
+      approval_form = render_to_string(partial: 'undo_approval_form', locals: {
+        undo_data: encrypt({ move_num: @game.move_num })
+      })
+      send_event_data_to_other_clients(event_name: "undo-request", payload: { approval_form: approval_form })
+      respond_to { |format| format.js }
+    else
+      render nothing: true
+    end
   end
 
   def mark_stones

@@ -139,12 +139,6 @@ class Game < ActiveRecord::Base
 
   def player_color(player = nil)
     (:black if player == black_player) || (:white if player == white_player)
-
-    #if player == black_player
-    #  :black
-    #elsif player == white_player
-    #  :white
-    #end
   end
 
   def white_capture_count
@@ -157,12 +151,6 @@ class Game < ActiveRecord::Base
 
   def point_count(player)
     (black_point_count if player == black_player) || (white_point_count if player == white_player)
-
-    #if player == black_player
-    #  black_point_count
-    #elsif player == white_player
-    #  white_point_count
-    #end
   end
 
   def black_point_count
