@@ -6,34 +6,56 @@
     <%= render 'game_stats', { game: @game } %>
   </div>
 
-  <div id='board_container'>
-    <% unless @game.finished? %>
+  <div id='table-container'>
+    <div id='board_container' class='centered-tables'>
       <div id='game-actions-container'>
         <%= form_tag({ action: :pass_turn }, { id: 'pass-turn-form' }) do %>
-          <%= submit_tag 'Pass', class: 'button', id: 'pass-button', disabled: current_user != @game.active_player %>
+          <%= submit_tag 'Pass', class: 'button', id: 'pass-button',
+            disabled: (current_user != @game.active_player) || @game.finished? %>
         <% end %>
 
         <%= form_tag({ action: :request_undo }, { id: 'request-undo-form', remote: true }) do %>
-          <%= submit_tag 'Undo', class: 'button', id: 'undo-button', disabled: !@game.played_a_move?(current_user) %>
+          <%= submit_tag 'Undo', class: 'button', id: 'undo-button',
+            disabled: !@game.played_a_move?(current_user) || @game.finished? %>
           <%= hidden_field_tag 'connection_id', @connection_id %>
         <% end %>
 
         <%= form_tag({ action: :done_scoring }, { id: 'done-scoring-form' }) do %>
           <% css_classes = ["button", ("hidden" if !@game.end_game_scoring?)] %>
-          <%= submit_tag 'Done', name: 'done', class: css_classes.compact.join(" "), id: "done-scoring-button" %>
+          <%= submit_tag 'Done', name: 'done', class: css_classes.compact.join(" "), id: "done-scoring-button",
+            disabled: @game.finished? %>
         <% end %>
 
         <%= form_tag({ action: :resign }, { id: 'resign-form' }) do %>
-          <%= submit_tag 'Resign', name: 'resign', class: "button", id: "resign-button" %>
+          <%= submit_tag 'Resign', name: 'resign', class: "button", id: "resign-button", disabled: @game.finished? %>
         <% end %>
       </div>
-    <% end %>
 
-    <%= form_tag({ action: :new_move }, { id: 'board-form' }) do %>
-      <table id='board-table' class='board-table'>
-        <%= render partial: 'games/tile', collection: @tiles %>
+      <%= form_tag({ action: :new_move }, { id: 'board-form' }) do %>
+        <table id='board-table' class='board-table'>
+          <%= render partial: 'games/tile', collection: @tiles %>
+        </table>
+      <% end %>
+    </div>
+
+    <div id='chat-container' class='centered-tables'>
+      <div id='chat-header'>
+        <h1 class='header-text'>Game Chat</h1>
+      </div>
+
+      <table id='chat-table'>
+        <tr id='top-buffer-row'></tr>
+        <tr id='bottom-buffer-row'></tr>
+        <tr id='chat-input-row'>
+          <td id='message-input-cell' colspan="3">
+            <%= text_field_tag 'message', nil, class: 'message-input', id: 'message-input' %>
+          </td>
+          <td id='chat-button-cell'>
+            <%= button_tag 'Send', id: 'send-message-button' %>
+          </td>
+        </tr>
       </table>
-    <% end %>
+    </div>
   </div>
 </div>
 
@@ -46,6 +68,7 @@
 <%= javascript_tag do %>
   window.room_id = '<%= @room_id %>';
   window.connection_id = '<%= @connection_id %>';
+  window.username = '<%= current_user.username %>';
 
   <% if @just_entered_scoring_phase %>
     $(document).ready(function() {

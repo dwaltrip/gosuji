@@ -4,6 +4,9 @@ var modal = new Modal({ closeButton: false });
 $(document).ready(function() {
     console.log('$(document).ready handler');
 
+    $('#chat-table').css('height', $('#board-form').css('height'));
+    adjust_chat_table_width();
+
     // new move
     $('#board-form').on('click.new_move', '.tile-container.clickable', function() {
         disable_turn_actions();
@@ -41,6 +44,10 @@ $(document).ready(function() {
 
     // for closing notifications
     $(modal.selector).on('click.ok_button', '#notification-container .ok-button', function(e) { modal.close(); });
+
+    $('#message-input').on('keypress', function(e) { if (e.which == 13) send_chat_message(); });
+    $('#send-message-button').on('click', function() { send_chat_message(); });
+    console.log('--- enter key pressed in text box');
 
     socket = get_socket();
     socket.emit('subscribe-to-updates', { room_id: window.room_id });
@@ -149,6 +156,33 @@ function enable_turn_actions() {
     $('#pass-button').prop('disabled', false);
 }
 
+function send_chat_message() {
+    var msg = $.trim($('#message-input').val());
+    if (msg.length > 0) {
+        var data = { message: msg, time: now_formatted(), username: window.username, room_id: window.room_id };
+        console.log('---- sending chat -- data:', JSON.stringify(data));
+        socket.emit('chat-message', data);
+        //add_chat_message(data);
+        $('#message-input').val('');
+        $('#message-input').focus();
+    }
+}
+
+function add_chat_message(data) {
+    remove_first_chat_if_necessary();
+    var new_chat_html = "<tr class='chat-row'>" +
+        "<td class='chat-time'>[" + data.time + "]</td>" +
+        "<td class='chat-author'>" + data.username + ":</td>" +
+        "<td class='chat-message' colspan='2'>" + data.message + "</td></tr>";
+    $('#bottom-buffer-row').before(new_chat_html);
+}
+
+function remove_first_chat_if_necessary() {
+    var $buffer_row = $('#bottom-buffer-row');
+    if ($buffer_row.height() <= $buffer_row.prev().height()) {
+        $('.chat-row').first().remove();
+    }
+}
 
 function get_socket() {
     console.log('-- sockjs_url: ' + window.sockjs_url + '\n');
@@ -188,8 +222,21 @@ function get_socket() {
         finalize_game_callback(data);
     });
 
+    sockjs.on('chat-message', function(data) {
+        console.log("inside sockjs.on('chat-message', cb) callback, data= " + JSON.stringify(data));
+        add_chat_message(data);
+    });
+
+
     return sockjs;
 }
+
+function adjust_chat_table_width() {
+    var new_width = $('#table-container').width() - $('#board_container').width() - 50;
+    if (new_width >= 400) new_width = new_width - 30;
+    $('#chat-table').css('width', new_width);
+}
+$(window).resize(function() { adjust_chat_table_width(); });
 
 function ajax_post_helper(form_elem, extra_data, on_success_callback) {
     var $form = $(form_elem).closest('form');
@@ -214,5 +261,9 @@ function ajax_post_helper(form_elem, extra_data, on_success_callback) {
 
 function hasKey(obj, key) {
     return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function now_formatted() {
+    return new Date().toTimeString().replace(/.*(\d{2}:\d{2}:\d{2}).*/, "$1");
 }
 
