@@ -36,12 +36,14 @@ class TilePresenter
   end
 
   def container_classes
-    classes = ["tile-container", tile_type, ("playable" if playable?), ("clickable" if clickable?)]
+    classes = ["tile-container"]
+    if @viewer.type != :observer
+      classes.push(tile_type, ("playable" if playable?), ("clickable" if clickable?))
 
-    if game_is_being_scored? && has_stone?
-      classes << (("dead-stone" if has_dead_stone?) || "alive-stone")
+      if game_is_being_scored? && has_stone?
+        classes << (("dead-stone" if has_dead_stone?) || "alive-stone")
+      end
     end
-
     classes.compact.join(" ")
   end
 
