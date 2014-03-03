@@ -1,5 +1,5 @@
-h1 {
-    margin: 5px 0 0 0;
+h1, h2, h3 {
+    margin: 10px 0 10px 0;
 }
 
 p {
@@ -123,6 +123,7 @@ div#header-container {
 h1.header-text {
     font-size: 1.7em;
     font-weight: bold;
+    margin: 5px 0 0 0;
 }
 
 #chat-table, #board-table {

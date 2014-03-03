@@ -16,3 +16,7 @@
 .field_with_errors {
     display: inline;
 }
+
+p.alert, p.notice {
+    padding: 1em 0 1em 0;
+}

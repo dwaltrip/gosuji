@@ -202,9 +202,14 @@ class GamesController < ApplicationController
   end
 
   def find_game
-    @game = Game.find(params[:id])
-    @room_id = "game-#{@game.id}"
-    pretty_log_game_info('----')
+    begin
+      @game = Game.find(params[:id])
+      @room_id = "game-#{@game.id}"
+      pretty_log_game_info('----')
+    rescue ActiveRecord::RecordNotFound
+      flash[:alert] = "The requested page does not exist."
+      redirect_to games_path
+    end
   end
 
   def pretty_log_game_info(prefix='')

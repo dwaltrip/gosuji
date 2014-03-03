@@ -1,8 +1,12 @@
 <%= render "layouts/back_to_games_list" %>
 
-<h1>Profile Page</h1>
-
-<h3>My Games</h3>
+<h1>
+  <% if current_user == @user %>
+    My Games
+  <% else %>
+    <%= @user.username %>'s games
+  <% end %>
+</h1>
 
 <table id='users-games-table' class='game-list'>
 

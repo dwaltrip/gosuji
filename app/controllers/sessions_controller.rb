@@ -1,6 +1,8 @@
 class SessionsController < ApplicationController
 
   def new
+    login_alert = session.delete(:login_alert)
+    flash.now.alert = login_alert if login_alert
   end
 
   def create

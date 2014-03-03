@@ -47,6 +47,9 @@ function join_game_callback(data) {
     if (data.join_game_succeeded) {
         window.location.href = data.game_url;
     }
+    else if (data.login_url) {
+        window.location.href = data.login_url;
+    }
 }
 
 function get_socket() {

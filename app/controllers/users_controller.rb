@@ -3,7 +3,12 @@ class UsersController < ApplicationController
   before_action :find_user, only: [:show]
 
   def find_user
-    @user = User.find(params[:id])
+    begin
+      @user = User.find(params[:id])
+    rescue ActiveRecord::RecordNotFound
+      flash[:alert] = "The requested page does not exist."
+      redirect_to games_path
+    end
   end
 
   def new
