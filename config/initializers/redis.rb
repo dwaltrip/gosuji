@@ -1,8 +1,8 @@
-redistogo_url = ENV["REDISTOGO_URL"]
+redis_url = ENV["REDIS_URL"]
 
 $redis =
-  if redistogo_url
-    uri = URI.parse(redistogo_url)
+  if redis_url
+    uri = URI.parse(redis_url)
     Redis.new(:host => uri.host, :port => uri.port, :password => uri.password)
   else
     Redis.new
