@@ -102,9 +102,6 @@ class MoveTracker
   end
 end
 
-Scenario = Struct.new(:description, :expected_tiles)
-Group = Struct.new(:color, :members, :liberties)
-
 def get_neighbors(pos, size)
   libs = []
   libs << pos - 1 if pos % size != 0
@@ -116,6 +113,9 @@ end
 
 
 describe Rulebook do
+
+  Scenario = Struct.new(:description, :expected_tiles)
+  Group = Struct.new(:color, :members, :liberties)
 
   shared_examples "properly identifies/maintians board state and stone groups" do |rulebook, expected_groups|
 

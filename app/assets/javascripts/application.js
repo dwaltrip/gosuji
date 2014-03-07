@@ -18,4 +18,4 @@
 //= require modal
 //= require sockjs-0.3.min
 //= require event_emitter
-//= require sockjs_client
+//= require sockjs-client

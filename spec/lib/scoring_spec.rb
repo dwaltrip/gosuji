@@ -1,5 +1,4 @@
 require 'spec_helper'
-require "#{Rails.root}/lib/scoring"
 
 RSpec.configure do |c|
   c.alias_it_should_behave_like_to :it_
@@ -56,14 +55,14 @@ def make_board(rows)
   end
 end
 
-# single letters to save space
-G = Group = Struct.new(:color, :stones, :liberties, :neighbors)
-T = TileZone = Struct.new(:tiles, :neighbors)
-B = BLACK
-W = WHITE
-
 
 describe Scoring::BoardAnalyzer do
+
+  # single letters to save space
+  S = StoneGroup = Struct.new(:color, :stones, :liberties, :neighbors)
+  T = TileZone = Struct.new(:tiles, :neighbors)
+  B = BLACK
+  W = WHITE
 
   describe ".identify_stone_groups_and_tile_zones" do
 
@@ -83,36 +82,36 @@ describe Scoring::BoardAnalyzer do
     ])
 
     expected_groups = {
-      1  => G.new(W, [1], [0, 2, 11],                                         { enemies: [] }),
-      2  => G.new(W, [6], [7],                                                { enemies: [8] }),
-      3  => G.new(B, [8], [7, 9, 18],                                         { enemies: [] }),
-      4  => G.new(W, [10], [0, 11, 20],                                       { enemies: [] }),
-      5  => G.new(W, [12, 13, 3, 23], [2, 11, 4, 14, 22],                     { enemies: [8, 10] }),
-      6  => G.new(B, [19], [9, 18, 29],                                       { enemies: [] }),
-      7  => G.new(W, [21, 31], [11, 20, 22, 32],                              { enemies: [9, 14] }),
-      8  => G.new(B, [24, 25, 5, 15, 16, 17], [14, 4, 7, 18, 26, 27, 34],     { enemies: [2, 5, 11] }),
-      9  => G.new(B, [30], [20],                                              { enemies: [7, 13] }),
-      10 => G.new(B, [33, 43, 53, 63, 64], [32, 34, 65, 73],                  { enemies: [5, 15, 18, 22] }),
-      11 => G.new(W, [35], [34],                                              { enemies: [8, 12, 16] }),
-      12 => G.new(B, [36, 37, 38, 28, 39, 49], [26, 27, 18, 29, 46, 48, 59],  { enemies: [11, 17] }),
-      13 => G.new(W, [40], [50],                                              { enemies: [9, 14] }),
-      14 => G.new(B, [41, 51], [50],                                          { enemies: [7, 13, 18] }),
-      15 => G.new(W, [44, 54], [34],                                          { enemies: [10, 16] }),
-      16 => G.new(B, [45, 55, 56, 57, 58], [46, 48, 59, 65],                  { enemies: [11, 15, 17, 19] }),
-      17 => G.new(W, [47], [46, 48],                                          { enemies: [12, 16] }),
-      18 => G.new(W, [60, 61, 62, 42, 52], [50, 32],                          { enemies: [10, 14, 21] }),
-      19 => G.new(W, [66, 67, 68, 76, 77, 87, 88, 98], [65, 75],              { enemies: [16, 20, 23, 25, 29, 30] }),
-      20 => G.new(B, [69], [59, 79],                                          { enemies: [19] }),
-      21 => G.new(B, [70, 71, 72, 82], [73, 81, 83, 92],                      { enemies: [18, 24] }),
-      22 => G.new(W, [74, 84, 85, 94], [73, 75, 83],                          { enemies: [10, 25, 27, 28] }),
-      23 => G.new(B, [78], [79],                                              { enemies: [19] }),
-      24 => G.new(W, [80, 90], [81],                                          { enemies: [21, 26] }),
-      25 => G.new(B, [86], [96],                                              { enemies: [19, 22] }),
-      26 => G.new(B, [91], [81, 92],                                          { enemies: [24] }),
-      27 => G.new(B, [93], [83, 92],                                          { enemies: [22] }),
-      28 => G.new(B, [95], [96],                                              { enemies: [22] }),
-      29 => G.new(B, [97], [96],                                              { enemies: [19] }),
-      30 => G.new(B, [89, 99], [79],                                          { enemies: [19] })
+      1  => S.new(W, [1], [0, 2, 11],                                         { enemies: [] }),
+      2  => S.new(W, [6], [7],                                                { enemies: [8] }),
+      3  => S.new(B, [8], [7, 9, 18],                                         { enemies: [] }),
+      4  => S.new(W, [10], [0, 11, 20],                                       { enemies: [] }),
+      5  => S.new(W, [12, 13, 3, 23], [2, 11, 4, 14, 22],                     { enemies: [8, 10] }),
+      6  => S.new(B, [19], [9, 18, 29],                                       { enemies: [] }),
+      7  => S.new(W, [21, 31], [11, 20, 22, 32],                              { enemies: [9, 14] }),
+      8  => S.new(B, [24, 25, 5, 15, 16, 17], [14, 4, 7, 18, 26, 27, 34],     { enemies: [2, 5, 11] }),
+      9  => S.new(B, [30], [20],                                              { enemies: [7, 13] }),
+      10 => S.new(B, [33, 43, 53, 63, 64], [32, 34, 65, 73],                  { enemies: [5, 15, 18, 22] }),
+      11 => S.new(W, [35], [34],                                              { enemies: [8, 12, 16] }),
+      12 => S.new(B, [36, 37, 38, 28, 39, 49], [26, 27, 18, 29, 46, 48, 59],  { enemies: [11, 17] }),
+      13 => S.new(W, [40], [50],                                              { enemies: [9, 14] }),
+      14 => S.new(B, [41, 51], [50],                                          { enemies: [7, 13, 18] }),
+      15 => S.new(W, [44, 54], [34],                                          { enemies: [10, 16] }),
+      16 => S.new(B, [45, 55, 56, 57, 58], [46, 48, 59, 65],                  { enemies: [11, 15, 17, 19] }),
+      17 => S.new(W, [47], [46, 48],                                          { enemies: [12, 16] }),
+      18 => S.new(W, [60, 61, 62, 42, 52], [50, 32],                          { enemies: [10, 14, 21] }),
+      19 => S.new(W, [66, 67, 68, 76, 77, 87, 88, 98], [65, 75],              { enemies: [16, 20, 23, 25, 29, 30] }),
+      20 => S.new(B, [69], [59, 79],                                          { enemies: [19] }),
+      21 => S.new(B, [70, 71, 72, 82], [73, 81, 83, 92],                      { enemies: [18, 24] }),
+      22 => S.new(W, [74, 84, 85, 94], [73, 75, 83],                          { enemies: [10, 25, 27, 28] }),
+      23 => S.new(B, [78], [79],                                              { enemies: [19] }),
+      24 => S.new(W, [80, 90], [81],                                          { enemies: [21, 26] }),
+      25 => S.new(B, [86], [96],                                              { enemies: [19, 22] }),
+      26 => S.new(B, [91], [81, 92],                                          { enemies: [24] }),
+      27 => S.new(B, [93], [83, 92],                                          { enemies: [22] }),
+      28 => S.new(B, [95], [96],                                              { enemies: [22] }),
+      29 => S.new(B, [97], [96],                                              { enemies: [19] }),
+      30 => S.new(B, [89, 99], [79],                                          { enemies: [19] })
     }
 
     expected_tile_zones = {
@@ -476,17 +475,17 @@ describe Scoring::BoardAnalyzer do
       finder = Proc.new { |member_key| board_analyzer.find_container(member_key) }
 
       expected_groups = {
-        1   => Group.new(WHITE, [1], [0, 8], { enemies: [2] }),
-        2   => Group.new(BLACK, [2, 9, 16], [8], { enemies: [1, 3, 5] }),
-        3   => Group.new(WHITE, [3, 10, 17, 23, 24, 25, 26, 27, 33], [18, 32, 34, 40], { enemies: [2, 4, 6, 7, 8] }),
-        4   => Group.new(BLACK, [4, 5, 11], [6, 12, 18], { enemies: [3] }),
-        5   => Group.new(WHITE, [7, 14, 15], [0, 8], { enemies: [2, 7] }),
-        6   => Group.new(BLACK, [13, 19, 20], [6, 12, 18], { enemies: [3] }),
-        7   => Group.new(BLACK, [21, 22, 28], [29, 35], { enemies: [3, 5] }),
-        8   => Group.new(BLACK, [30, 31, 38, 45], [29, 32, 37, 44], { enemies: [3, 10] }),
-        9   => Group.new(BLACK, [36], [29, 35, 37, 43], { enemies: [] }),
-        10  => Group.new(WHITE, [39, 46, 47], [32, 40, 48], { enemies: [8] }),
-        11  => Group.new(WHITE, [41], [34, 40, 48], { enemies: [] })
+        1   => StoneGroup.new(WHITE, [1], [0, 8], { enemies: [2] }),
+        2   => StoneGroup.new(BLACK, [2, 9, 16], [8], { enemies: [1, 3, 5] }),
+        3   => StoneGroup.new(WHITE, [3, 10, 17, 23, 24, 25, 26, 27, 33], [18, 32, 34, 40], { enemies: [2, 4, 6, 7, 8] }),
+        4   => StoneGroup.new(BLACK, [4, 5, 11], [6, 12, 18], { enemies: [3] }),
+        5   => StoneGroup.new(WHITE, [7, 14, 15], [0, 8], { enemies: [2, 7] }),
+        6   => StoneGroup.new(BLACK, [13, 19, 20], [6, 12, 18], { enemies: [3] }),
+        7   => StoneGroup.new(BLACK, [21, 22, 28], [29, 35], { enemies: [3, 5] }),
+        8   => StoneGroup.new(BLACK, [30, 31, 38, 45], [29, 32, 37, 44], { enemies: [3, 10] }),
+        9   => StoneGroup.new(BLACK, [36], [29, 35, 37, 43], { enemies: [] }),
+        10  => StoneGroup.new(WHITE, [39, 46, 47], [32, 40, 48], { enemies: [8] }),
+        11  => StoneGroup.new(WHITE, [41], [34, 40, 48], { enemies: [] })
       }
 
       expected_tile_zones = {
