@@ -45,12 +45,13 @@ $(document).ready(function() {
     // for closing notifications
     $(modal.selector).on('click.ok_button', '#notification-container .ok-button', function(e) { modal.close(); });
 
+    // game chat
     $('#message-input').on('keypress', function(e) { if (e.which == 13) send_chat_message(); });
     $('#send-message-button').on('click', function() { send_chat_message(); });
     console.log('--- enter key pressed in text box');
 
     socket = get_socket();
-    socket.emit('subscribe-to-updates', { room_id: window.room_id });
+    socket.emit('join-room', { room: window.room_id });
 });
 
 function update_game(data) {
@@ -162,7 +163,7 @@ function send_chat_message() {
         var data = { message: msg, time: now_formatted(), username: window.username, room_id: window.room_id };
         console.log('---- sending chat -- data:', JSON.stringify(data));
         socket.emit('chat-message', data);
-        //add_chat_message(data);
+        add_chat_message(data);
         $('#message-input').val('');
         $('#message-input').focus();
     }

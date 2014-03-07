@@ -1,0 +1,13 @@
+<tr id='game-<%= game.id %>' class='open_game'>
+  <td><%= game.creator.username %></td>
+  <td class='centered'><%= game.board_size %> x <%= game.board_size %></td>
+  <td><%= game.description %></td>
+  <td class='centered'>
+    <% show_link = local_assigns.fetch(:show_link, false) %>
+    <% if game.creator != current_user || show_link %>
+      <%= link_to "Join", join_game_path(game), class: 'join-game-link', "data-username" => game.creator.username %>
+    <% else %>
+      -
+    <% end %>
+  </td>
+</tr>

@@ -40,6 +40,18 @@ class User < ActiveRecord::Base
     all_games.select { |game| game.not_open? }
   end
 
+  def has_open_games?
+    open_games.length > 0
+  end
+
+  def open_game_ids
+    @ids_of_open_games ||= open_games.map { |game| game.id }
+  end
+
+  def open_games
+    @open_games ||= created_games.select { |game| game.open? }
+  end
+
   private
 
   def clean_data

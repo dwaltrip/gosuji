@@ -22,7 +22,8 @@ var Modal = function(opts) {
         $modal.hide();
         $overlay.hide();
         $modal.append($content);
-        if (hasCloseButton) $modal.append($close);
+        $modal.append($close);
+        if (hasCloseButton) $close.hide();
 
         $(document).ready(function(){
             $('body').append($overlay, $modal);
@@ -37,6 +38,12 @@ var Modal = function(opts) {
     // Open the modal
     this.open = function (settings) {
         $content.empty().append(settings.content);
+        if (settings.closeButton && !hasCloseButton) {
+            $close.show();
+        }
+        else if (!hasCloseButton) {
+            $close.hide();
+        }
 
         function displayModal() {
             $modal.css({

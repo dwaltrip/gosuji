@@ -24,7 +24,7 @@ $(document).ready(function() {
     $(modal.selector).on('click', '.join-game-content .cancel-button', function(e) { modal.close(); });
 
     socket = get_socket();
-    socket.emit('subscribe-to-updates', { room_id: window.room_id });
+    socket.emit('join-room', { room: "lobby" });
 });
 
 function prep_join_game_modal_content(link_elem) {
@@ -52,6 +52,14 @@ function join_game_callback(data) {
     }
 }
 
+function add_open_game(open_game_html) {
+    $('tr.open_game').first().before(open_game_html);
+}
+
+function remove_open_game(game_id) {
+    $('tr#game-' + game_id).remove();
+}
+
 function get_socket() {
     console.log('-- sockjs_url: ' + window.sockjs_url + '\n');
     var sockjs = new SockjsClient(window.sockjs_url);
@@ -67,6 +75,28 @@ function get_socket() {
     sockjs.on('message', function(data) {
         console.log("inside sockjs.on('message', cb) callback, data= " + JSON.stringify(data));
     });
+
+    sockjs.on('new-open-game', function(data) {
+        console.log("inside sockjs.on('new-open-game', cb) callback, data= " + JSON.stringify(data));
+        add_open_game(data.open_game_html);
+    });
+
+    sockjs.on('remove-open-game', function(data) {
+        console.log("inside sockjs.on('remove-open-game', cb) callback, data= " + JSON.stringify(data));
+        remove_open_game(data.game_id);
+    });
+
+    if (window.open_game_ids) {
+        for(var i=0; i < window.open_game_ids.length; i++) {
+            var event_name = 'challenger-joined-game-' + window.open_game_ids[i];
+            sockjs.on(event_name, function(data) {
+                console.log("inside sockjs.on('" + event_name + "', cb) callback, data= " + JSON.stringify(data));
+                var content = data.challenger_username + " has joined your game."
+                    + " <a href='" + data.show_game_url + "'>Click here</a> to load the game.";
+                modal.open({ content: content, closeButton: true });
+            });
+        }
+    }
 
     return sockjs;
 }

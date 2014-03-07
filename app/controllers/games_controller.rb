@@ -1,6 +1,7 @@
 class GamesController < ApplicationController
   before_filter :require_login, :except => :index
   before_action :find_game, except: [:index, :new, :create]
+  before_action :generate_connection_id, only: [:index, :show]
 
   def index
     @open_games = Game.open.order('created_at DESC')
@@ -22,8 +23,11 @@ class GamesController < ApplicationController
     )
 
     if @game.save
+      send_realtime_data(room_id: "lobby", event_name: "new-open-game",
+        payload: { open_game_html: render_to_string(partial: 'open_game', locals: { game: @game, show_link: true }) }
+      )
       redirect_to games_path, notice: 'Game was created successfully!'
-    elsif
+    else
       render "new"
     end
   end
@@ -31,6 +35,11 @@ class GamesController < ApplicationController
   def join
     if @game.open? && current_user != @game.creator
       @game.pregame_setup(current_user)
+
+      send_realtime_data(event_name: "challenger-joined-game-#{@game.id}", room_id: "lobby",
+        payload: { challenger_username: current_user.username, show_game_url: game_path(@game) })
+      send_realtime_data(event_name: "remove-open-game", room_id: "lobby", payload: { game_id: @game.id })
+
       respond_to { |format| format.json }
     else
       render nothing: true
@@ -45,8 +54,6 @@ class GamesController < ApplicationController
       @tiles = decorated_tiles(current_user, tiles_to_render)
       @json_scoring_data = json_scoring_updates(reset_content_type_to_html=true)
     end
-
-    @connection_id = generate_token
     @tiles = decorated_tiles(current_user, @game.tiles_to_render(current_user))
   end
 
@@ -184,8 +191,8 @@ class GamesController < ApplicationController
 
 
   def send_realtime_data(event_data)
+    event_data[:room_id] = @room_id unless event_data.key?(:room_id)
     event_data[:connection_id_to_skip] = params[:connection_id]
-    event_data[:room_id] = @room_id
     logger.info "-- games#send_realtime_data -- event_data: #{event_data.inspect}"
     $redis.publish "game-events", JSON.dump(event_data)
   end
@@ -199,6 +206,10 @@ class GamesController < ApplicationController
       flash[:alert] = "The requested page does not exist."
       redirect_to games_path
     end
+  end
+
+  def generate_connection_id
+    @connection_id = generate_token
   end
 
   def pretty_log_game_info(prefix='')
