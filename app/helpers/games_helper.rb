@@ -1,6 +1,6 @@
 module GamesHelper
 
-  BASE = ActionController::Base.new()
+  RENDERER = ActionController::Base.new()
 
   def disable_turn_actions?(game)
     current_user != game.active_player
@@ -48,7 +48,7 @@ module GamesHelper
       "You can mark a stone group as not dead by clicking on it while holding the <code>SHIFT</code> key.",
       "When finished, press the 'Done' button."
     ].join(" ")
-    BASE.render_to_string(partial: 'games/notification', locals: { lines_of_content: [content_str] })
+    RENDERER.render_to_string(partial: 'games/notification', locals: { lines_of_content: [content_str] })
   end
 
   def game_finished_message(game)
@@ -60,7 +60,7 @@ module GamesHelper
     ].compact
 
     Rails.logger.info "--- GamesHelper.game_finished_message -- lines_of_content: #{lines_of_content.inspect}"
-    BASE.render_to_string(partial: 'games/notification', locals: { lines_of_content: lines_of_content })
+    RENDERER.render_to_string(partial: 'games/notification', locals: { lines_of_content: lines_of_content })
   end
 
   def score_details_message(game, player)
@@ -78,7 +78,7 @@ module GamesHelper
       loser = game.opponent(winner)
 
       if game.win_by_resign?
-        msg << "#{loser.username} (#{game.player_color(winner)}) has resigned."
+        msg << "#{loser.username} (#{game.player_color(loser)}) has resigned."
         msg << " #{winner.username} (#{game.player_color(winner)}) has won."
       elsif game.win_by_time?
         msg << "#{loser.username} (#{game.player_color(winner)}) ran out of time."

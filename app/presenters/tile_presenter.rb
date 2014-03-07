@@ -3,8 +3,7 @@ class TilePresenter
   attr_reader :pos
 
   BASE_DIR ="game_board/#{GoApp::TILE_PIXEL_SIZE}px"
-
-  @@ActionControllerBase = ActionController::Base.new()
+  @@renderer = ActionController::Base.new()
 
   def initialize(params)
     @board_size = params[:board_size]
@@ -70,13 +69,13 @@ class TilePresenter
   def to_html(viewer)
     _tmp = @viewer
     @viewer = viewer
-    html_string = @@ActionControllerBase.render_to_string(partial: 'games/tile', locals: { tile: self })
+    html_string = @@renderer.render_to_string(partial: 'games/tile', locals: { tile: self })
     @viewer = _tmp
     html_string
   end
 
   def to_s
-    "#<GamesHelper::TilePresenter: @pos=#{@pos.inspect}, @state=#{@state.inspect}>"
+    "#<#{self.class}: @pos=#{@pos.inspect}, @state=#{@state.inspect}>"
   end
 
   private

@@ -120,6 +120,7 @@ module Scoring
         @scores[meta_chain.color] += meta_chain.territory_counts(recalculate=true)
       end
       @board.chains.each do |chain|
+        # only add territory from chains that are not part of a metachain
         @scores[chain.color] += chain.territory_counts unless @board.has_container?(chain)
       end
 
@@ -132,7 +133,7 @@ module Scoring
     end
 
     def add_captures_and_komi_to_scores
-      # before we add the non territory items to @scores, copy the data into @territory_counts instance var
+      # before we add the non territory items to @scores, copy territory data into @territory_counts instance var
       @territory_counts = @scores.dup
 
       @scores[BLACK] += @board.dead_stone_counts[WHITE] + @black_captures

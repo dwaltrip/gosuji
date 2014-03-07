@@ -13,10 +13,10 @@ This ends the 'ACTIVE' game part, and the game enters the 'END GAME SCORING' pha
 A notification window popups for both players with instructions for how to score and finalize the game.
 
 The board display is updated with the initial analysis from scoring bot:
-    -- the eyes of groups with 2+ eyes or an eye of size 3 or more, if the eyes do not contain enemy stones,
-        are considered territory points for that player. eyes of that group containing enemy stones are neutral tiles.
+    -- the eyes of chains with 2+ eyes or a single eye of size 3+ are considered territory points for that player.
+       (most surrounded tile zones are eyes)
     -- all other empty tiles are considered neutral tiles/no points.
-    -- all stone groups start out as alive
+    -- all stone chains start out as alive
 
 The players can now, at the same time, mark/unmark stone groups as dead.
 * Effect of marking a stone as dead are:

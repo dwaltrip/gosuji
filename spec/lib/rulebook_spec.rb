@@ -1,6 +1,3 @@
-## ---------------------------------------------------------------
-## these specs should be run with the flag: --format documentation
-## ---------------------------------------------------------------
 require 'spec_helper'
 
 RSpec.configure do |c|
@@ -120,13 +117,6 @@ end
 
 describe Rulebook do
 
-  # Ironically, after realizing 'get_killing_moves' is a private method and cant be cleanly tested
-  # I remembered that the only reason the @members, @group_ids, @liberties, and @colors variables are accessible
-  # is because I made them accessible while I writing the rulebook code, for testing/debugging purposes
-  # so honestly they should be private implementation details that arent cleanly testable
-  # alternatively, a superior design would be to extract this data/functionality into Group & GroupManager objects
-  # I could then cleanly test the public methods and data on those objects
-  # this would be a fair amount of work. but the rulebook class is also unambiguously too large
   shared_examples "properly identifies/maintians board state and stone groups" do |rulebook, expected_groups|
 
     it "internally maintains correct board state" do
@@ -311,13 +301,6 @@ describe Rulebook do
     it_ "identifies invalid tiles (rulebook.invalid_moves)", rulebook, invalid_tiles, valid_tiles
   end
 
-  # as I write the code for this section of the specs
-  # I realize I should have something like a BoardManager object
-  # that can add stones, fetch liberties, knows (and hides from public viewing) the coordinate system, etc
-  # this would be tested separately, and then in here I would do things like
-  # bm = BoardManager.new(size)
-  # bm.add_pos(:white, 1, 1) # this would handle liberties, etc
-  # of course, we would first need Group & GroupManager objects, which BoardManager would coordinate with
   context "when handling new moves (rulebook.play_move), basic scenarios" do
     size = 10
 
@@ -421,9 +404,8 @@ describe Rulebook do
     end
   end
 
-  # too coupled to rulebook internals (like many of the specs in this file..)
-  # rulebook will undergo a large refactoring one day
-  # I now understand more viscerally why you are supposed to write specs before implementing!
+  # Too coupled to rulebook internals.
+  # Will be fixed when we refactor Rulebook using the nice objects we created in Scoring module
   shared_examples "captures group(s) properly" do |rulebook, expected_captures|
     it "stores set of captured stones" do
       expect(rulebook.captured_stones).to contain_exactly(expected_captures)

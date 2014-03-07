@@ -44,14 +44,8 @@ class User < ActiveRecord::Base
 
   def clean_data
     # trim whitespace from beginning and end of string attributes
-    changes.each do |name, change|
-      if send(name).respond_to?(:strip)
-        send("#{name}=", change.last.strip)
-      end
-    end
-
-    # normalize white space in username
-    # todo: inform user that this has happened
+    changes.each { |name, change| send("#{name}=", change.last.strip) if send(name).respond_to?(:strip) }
+    # normalize white space in username. should we inform user about this?
     send("username=", send("username").split.join(' '))
   end
 

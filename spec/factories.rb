@@ -1,4 +1,3 @@
-
 FactoryGirl.define do
 
   factory :user do
@@ -26,5 +25,4 @@ FactoryGirl.define do
       association :white_player, factory: :user
     end
   end
-
 end

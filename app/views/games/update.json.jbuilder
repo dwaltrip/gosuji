@@ -1,6 +1,3 @@
-# makes use of two local vars, 'tiles' and 'user'
-# this allows to use this template for both current_user and their opponent
-
 json.status_message status_message(@game)
 json.captures do
   json.black @game.black_capture_count

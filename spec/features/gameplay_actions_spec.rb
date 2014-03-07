@@ -16,7 +16,7 @@ feature "gameplay actions" do
       expect(page).not_to have_stone
     end
 
-    # alternate between black and white player, playing a move, and assert browser displays board properly
+    # alternate between black and white player, playing a move, and make sure browser displays board properly
     Cycle.new(players).cycle(tiles.length) do |current_player, counter|
       color = color_map[current_player.id]
       move_num = counter + 1
@@ -183,7 +183,6 @@ feature "gameplay actions" do
     colors = [:black, :white]
     opponent_colors = { :black => :white, :white => :black }
     komi = { white: 0 }
-    #territory = { black: [3, 4, 8, 14, 24], white: [0, 10, 15, 20] }
     territory = { black: [3, 8, 14, 24], white: [0, 10, 20] }
 
     alive_stones = {  black: [2, 7, 9, 13, 18, 19, 23],

@@ -10,6 +10,7 @@
     <div id='board_container' class='centered-tables'>
       <div id='game-actions-container'>
         <% observer = !@game.has_player?(current_user) %>
+
         <%= form_tag({ action: :pass_turn }, { id: 'pass-turn-form' }) do %>
           <%= submit_tag 'Pass', class: 'button', id: 'pass-button',
             disabled: (current_user != @game.active_player) || @game.finished? %>
@@ -17,7 +18,7 @@
 
         <%= form_tag({ action: :request_undo }, { id: 'request-undo-form', remote: true }) do %>
           <%= submit_tag 'Undo', class: 'button', id: 'undo-button',
-            disabled: !@game.played_a_move?(current_user) || @game.finished? %>
+            disabled: observer || !@game.played_a_move?(current_user) || @game.finished? %>
           <%= hidden_field_tag 'connection_id', @connection_id %>
         <% end %>
 
@@ -41,9 +42,7 @@
     </div>
 
     <div id='chat-container' class='centered-tables'>
-      <div id='chat-header'>
-        <h1 class='header-text'>Game Chat</h1>
-      </div>
+      <div id='chat-header'><h1 class='header-text'>Game Chat</h1></div>
 
       <table id='chat-table'>
         <tr id='top-buffer-row'></tr>

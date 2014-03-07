@@ -46,7 +46,6 @@ describe Game do
       expect(new_board.captured_stones).to eq(0)
     end
 
-    # this test should be broken up into unit tests on helper methods Game and Board that Game.new_move calls
     it "captures stones properly" do
       #  representation of board for this example:
       #  |_|_|_|_|
@@ -144,7 +143,6 @@ describe Game do
       game.new_move(size - 1, white_player) # out of the way in the top most right corner
       expect(game.white_capture_count).to eq(1)
       expect(game.black_capture_count).to eq(1)
-      # bada bing, bada boom!
     end
   end
 

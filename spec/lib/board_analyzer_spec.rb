@@ -366,7 +366,7 @@ describe Scoring::BoardAnalyzer do
             '|b|b|w|_|',
             '|b|_|w|_|',
             '|_|_|_|_|'], 0, true),
-          Example.new("with 1 out of 1 digaonals occupied by enemy stones", [
+          Example.new("with 0 out of 1 digaonals occupied by enemy stones", [
             '|_|_|_|_|',
             '|b|_|_|_|',
             '|b|_|_|_|',
@@ -910,7 +910,7 @@ describe Scoring::Scorebot, focus: true do
       scorebot = build_scorebot(board_rows)
       before(:all) { scorebot.mark_as_dead(first_stone_to_mark) }
 
-      it "marks the eye of a single-eye chain as territory points" do
+      it "marks the eye of a single-eye chain as territory" do
         single_eye_tiles.each { |tile_pos| expect(scorebot.territory_status(tile_pos)).to be(:black) }
       end
 
@@ -918,7 +918,7 @@ describe Scoring::Scorebot, focus: true do
         single_eye_tiles.each { |tile_pos| expect(scorebot.changed_tiles).to include(tile_pos) }
       end
 
-      it "updates the score to reflect the new territory point tiles" do
+      it "updates the score to reflect the new territory tiles" do
         black_points = initial_scores[:black] + new_territory_tiles[:black].size + captures[:black]
         expect(scorebot.black_point_count).to eq(black_points)
         expect(scorebot.white_point_count).to eq(initial_scores[:white])
@@ -933,7 +933,7 @@ describe Scoring::Scorebot, focus: true do
         scorebot.mark_as_dead(second_stone_to_mark)
       end
 
-      it "unmarks the eye of a single-eye chains as territory points" do
+      it "unmarks the eye of a single-eye chains as territory" do
         single_eye_tiles.each { |tile_pos| expect(scorebot.territory_status(tile_pos)).to be_nil }
       end
 
@@ -941,7 +941,7 @@ describe Scoring::Scorebot, focus: true do
         single_eye_tiles.each { |tile_pos| expect(scorebot.changed_tiles).to include(tile_pos) }
       end
 
-      it "updates the score to reflect the new as well as revoked territory point tiles" do
+      it "updates the score to reflect the new terrritory tiles as well as revoked territory tiles" do
         white_points = initial_scores[:white] + new_territory_tiles[:white].size + captures[:white]
         expect(scorebot.black_point_count).to eq(initial_scores[:black])
         expect(scorebot.white_point_count).to eq(white_points)

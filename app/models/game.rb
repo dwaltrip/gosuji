@@ -29,16 +29,12 @@ class Game < ActiveRecord::Base
   scope :active, lambda { where(:status => ACTIVE) }
 
 
-  ##-- game model instance methods --##
-
   def active_board
     boards.last
   end
 
   def previous_board
-    if boards.count >= 2
-      boards[-2]
-    end
+    boards[-2] if boards.count >= 2
   end
 
   def move_num
@@ -56,11 +52,8 @@ class Game < ActiveRecord::Base
   def tiles_to_render(player, updates_only=false)
     if updates_only
       tiles_to_update = get_rulebook.tiles_to_update(player_color(player))
-
       # rulebook doesnt have knowledge of previous board_states
-      if previous_board && previous_board.pos
-        tiles_to_update.add(previous_board.pos)
-      end
+      tiles_to_update.add(previous_board.pos) if previous_board && previous_board.pos
 
       active_board.pos_nums_and_tile_states(tiles_to_update)
     else
@@ -73,15 +66,11 @@ class Game < ActiveRecord::Base
     active_board.pos_nums_and_tile_states(scorebot.changed_tiles)
   end
 
-  def territory_status(tile_pos)
+  def territory_status(pos)
     if finished? && win_by_score?
-      if territory_tiles(:black).include?(tile_pos)
-        :black
-      elsif territory_tiles(:white).include?(tile_pos)
-        :white
-      end
+      (:black if territory_tiles(:black).include?(pos)) || (:white if territory_tiles(:white).include?(pos))
     elsif end_game_scoring?
-      get_scorebot.territory_status(tile_pos)
+      get_scorebot.territory_status(pos)
     end
   end
 
@@ -117,10 +106,7 @@ class Game < ActiveRecord::Base
   end
 
   def viewer(user)
-    Struct.new(:type, :color).new(
-      viewer_type(user),
-      player_color(user)
-    )
+    Struct.new(:type, :color).new(viewer_type(user), player_color(user))
   end
 
   def viewer_type(user)
@@ -208,17 +194,12 @@ class Game < ActiveRecord::Base
     rulebook = get_rulebook
     color = player_color(current_player)
 
-    msg = "active?: #{active?}, active_player: #{active_player}"
-    msg << ", rb.invalid_moves: #{rulebook.invalid_moves}, rb.playable?: #{rulebook.playable?(new_move_pos, color)}"
-    logger.info "-- game.new_move -- #{msg}"
-
     if active? && current_player == active_player && rulebook.playable?(new_move_pos, color)
       rulebook.play_move(new_move_pos, color)
       create_next_board(new_move_pos, color)
 
       logger.info "-- Game.new_move -- rulebook.captured_stones: #{rulebook.captured_stones.inspect}"
       logger.info "-- Game.new_move -- rulebook.invalid_moves: #{rulebook.invalid_moves.inspect}"
-
       true
     else
       false
@@ -255,12 +236,10 @@ class Game < ActiveRecord::Base
       prev_board = active_board
       prev_invalid_moves = get_rulebook.invalid_moves
 
-      # destroy 1 board
       if undoing_player == inactive_player
-        active_board.destroy
-      # destroy 2 boards
+        active_board.destroy # destroy 1 board
       elsif undoing_player == active_player
-        boards.to_a[-2..-1].each { |board| board.destroy }
+        boards.to_a[-2..-1].each { |board| board.destroy } # destroy 2 boards
       end
 
       # this is a presentation detail, we should find a way to move it outside the game model
@@ -299,11 +278,7 @@ class Game < ActiveRecord::Base
       $redis.expire(done_scoring_key(player), 600)
 
       black_done, white_done = $redis.mget(done_scoring_key(black_player), done_scoring_key(white_player))
-
-      log_msg = "black_done: #{black_done.inspect}, white_done: #{white_done.inspect}"
-      logger.info "--- Game.update_done_scoring_flags --- #{log_msg}"
       finish_scoring if black_done && white_done
-
       true
     else
       false
@@ -446,19 +421,10 @@ class Game < ActiveRecord::Base
   end
 
   def captured_count(color)
-    last_boards = boards_by_color(last_only = true)
-
     opposing_color = (:black if color == :white) || (:white if color == :black)
     dead_enemy_stone_count = (dead_stone_count(opposing_color) if finished?) || 0
 
-    captured_stone_count =
-      unless last_boards[color].nil?
-        last_boards[color].captured_stones
-      else
-        logger.info "-- Game.captured_count: no previous board for #{color.inspect}"
-        0
-      end
-
+    captured_stone_count = (last_board(color).captured_stones if last_board(color)) || 0
     captured_stone_count + dead_enemy_stone_count
   end
 
@@ -467,15 +433,10 @@ class Game < ActiveRecord::Base
   end
 
   def get_rulebook(force_rebuild=false)
-    if (not @rulebook) or force_rebuild
-      params = { size: board_size, board: active_board.tiles }
-      @rulebook = Rulebook::Handler.new(params)
-
-      if active_board.ko
-        @rulebook.set_ko_position(active_board.ko, player_color(active_player))
-      end
+    if !@rulebook || force_rebuild
+      @rulebook = Rulebook::Handler.new({ size: board_size, board: active_board.tiles })
+      @rulebook.set_ko_position(active_board.ko, player_color(active_player)) if active_board.ko
     end
-
     @rulebook
   end
 
@@ -499,40 +460,23 @@ class Game < ActiveRecord::Base
     (player_color(player) && ((move_num >= 2) || (move_num == 1 && player == inactive_player)))
   end
 
-  def boards_by_color(last_only = false)
-    boards_hash = {}
-    if boards.length == 0
-      return nil
-    elsif last_only
-      b1, b2 = boards[-1], boards[-2]
-      if player_color(player_at_move(b1.move_num)) == :black
-        boards_hash[:black], boards_hash[:white] = b1, b2
-      else
-        boards_hash[:black], boards_hash[:white] = b2, b1
+  def last_board(color)
+    if boards.length > 0
+      if !@last_boards || (move_num != @current_move_num)
+        b_board, w_board = boards[-1], boards[-2]
+        b_board, w_board = w_board, b_board if player_color(player_at_move(b_board.move_num)) == :white
+        @last_boards = { black: b_board, white: w_board }
+        @current_move_num = move_num
       end
-    else
-      boards_hash[:black], boards_hash[:white] = [], []
-      boards.each do |b|
-        if b.move_num > 0
-          boards_hash[:white] << b if player_color(player_at_move(b.move_num)) == :black
-          boards_hash[:white] << b if player_color(player_at_move(b.move_num)) == :white
-        end
-      end
+
+      @last_boards[color]
     end
-    boards_hash
   end
 
   private
 
   def clear_association_cache_wrapper
-    msg = "(boards[-1].id: %d, boards.length: %d)"
-    before_msg = msg % [boards[-1].id, boards.to_a.length]
-
     clear_association_cache
-
-    after_msg = msg % [boards[-1].id, boards.to_a.length]
-    logger.info "-- clear_association_cache_wrapper -- id: #{id}, object_id: #{object_id}"
-    logger.info "-- -- before: #{before_msg} -- after: #{after_msg}"
   end
 
 end

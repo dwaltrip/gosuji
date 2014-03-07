@@ -1,8 +1,5 @@
 class ApplicationController < ActionController::Base
-  # Prevent CSRF attacks by raising an exception.
-  # For APIs, you may want to use :null_session instead.
   protect_from_forgery with: :exception
-
   helper_method :current_user
 
   def redirect_bad_urls
@@ -12,12 +9,11 @@ class ApplicationController < ActionController::Base
 
   private
 
-  # return current_user, using existing object if available to save db hits
   def current_user
     begin
       @current_user ||= User.find(session[:user_id]) if session[:user_id]
     rescue ActiveRecord::RecordNotFound
-      # this should only happen if user is deleted from User table, but user still has session cookies
+      # this should only happen if user is deleted from User table, but user's browser still has session cookies
       logger.warn "-- current_user helper -- session hash contained invalid user_id"
       session.delete(:user_id)
       return nil

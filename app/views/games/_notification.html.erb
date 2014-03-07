@@ -1,15 +1,10 @@
 <div id='notification-container'>
-  <% if local_assigns.key?(:sub_partial) %>
-    <%= render partial: sub_partial, locals: local_assigns.fetch(:subpartial_vars, {})  %>
+  <div class='modal-message'>
+    <% lines_of_content.each_with_index do |content_line, index| %>
+      <% if index > 0 %><br><% end %>
+      <%= content_line.html_safe %>
+    <% end %>
+  </div>
 
-  <% elsif local_assigns.key?(:lines_of_content) %>
-    <div class='modal-message'>
-      <% lines_of_content.each_with_index do |content_line, index| %>
-        <% if index > 0 %><br><% end %>
-        <%= content_line.html_safe %>
-      <% end %>
-    </div>
-
-    <%= button_tag "Ok", { type: 'button', class: 'ok-button' } %>
-  <% end %>
+  <%= button_tag "Ok", { type: 'button', class: 'ok-button' } %>
 </div>

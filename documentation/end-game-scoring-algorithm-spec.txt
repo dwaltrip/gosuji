@@ -1,6 +1,6 @@
-NOTE: This documentation is imperfect. The general idea is quite accurate, however there are some
+NOTE: This documentation is imperfect/incomplete. The general idea is quite accurate, however there are some
       semi-fuzzy details that the implementation is forced to clear up. It isn't worth the time right now
-      to update the docs (more pressing matters beckon). Regardless, the code is relatively well-tested.
+      to update the docs (more pressing matters beckon). Regardless, the implementation is relatively well-tested.
 
 -----------
 Definitions
@@ -26,7 +26,7 @@ Definitions
 Task Descriptions
 -----------------
     1) Construct data structures used in scoring analysis from simple board state (array of values, one per tile)
-    2) Determine initial scoring state (2nd paragraph of user story)
+    2) Determine initial scoring state (2nd paragraph of user story in end-game-scoring-description.txt)
     3) Determine impact of marking a stone dead/alive
     4) Store the necessary data as JSON in redis between requests, then fetching and reconstructing the Ruby objects
 
@@ -76,8 +76,6 @@ Task 1 Algorithm
         * Hash mapping each empty tile position to the territory that it is part of
         * Hash mapping each stone group to the chain that it is part of
 
-Idea: As we grab the neighbors for each tile, order them from friendly, to empty, to enemy? This
-      should make the group construction logic below easier
 * Steps, Part 1 -- Create group data with the following process:
     - Iterate through board tile array. For each position, only consider neighbor tiles above and to the left.
         * If current tile is empty
@@ -125,13 +123,9 @@ Idea: As we grab the neighbors for each tile, order them from friendly, to empty
         * First create an empty hash to use as chain lookup (keys are groups, values are chains)
     - Choose a initial territory to begin the algorithm (doesn't matter which one).
         * If the territory is surrounded by one color, determine if it is also an eye
-            - If it is size 3 or more, it is an eye
-            ---- FOLLOWING LOGIC IS WRONG (will update in the future, see specs for examples with correct logic) -----
-            - If it is size 2 or 1, then we have to check each directly diagonally tile. Corner territories have a
-              single diagonally adjacent tile, edge territories have 2 diagonally adjacent tiles, and center tiles
-              have 4 diagonally adjacent tiles. If more than 1 of these diagonally adjacent tiles is an enemy stone,
-              the territory is NOT an eye. Otherwise, the territory is an eye for the chain it is surrounded by.
-            ---- END BLOCK OF INCRROECT LOGIC ----
+            - If it is size 3 or more, it is an eye. Surrounded tile zones of size 1 or 2 are only not considered
+              eyes if there is nothing the player can do to prevent the opponent from forcing the player to fill
+              the empty space.
         * Iterate through all neighboring stone groups
             - For the first neighboring black stone group we see, create a new chain for that group.
               Process for creating a new chain (from an initial stone group):
@@ -190,7 +184,6 @@ Task 2 Algorithm
           to the list territory  points for the color of the chain
         * Set the point count for the current chain to equal the number of tiles that we added in the previous step
     - The point total for white and black is equal to the total number of tiles in each territory point list
-    - That was easy!
 
 ----------------
 ----------------

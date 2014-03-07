@@ -1,4 +1,3 @@
-
 if @just_entered_scoring_phase
   json.just_entered_scoring_phase true
   json.instructions scoring_instructions
@@ -10,7 +9,6 @@ json.points do
   json.black @game.black_point_count
   json.white @game.white_point_count
 end
-
 
 json.tiles @tiles do |tile|
   json.pos tile.pos

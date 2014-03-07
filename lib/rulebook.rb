@@ -1,5 +1,10 @@
-module Rulebook
+### --- todo ---
+### refactor this entire module to make use of the BoardAnalyzer, StoneGroup, and TileZone objects
+### that we created for the Scoring module. we can then use those objects to improve the efficiency
+### and simplicity of our move processing logic, and perhaps cache the analysis data between turns in $redis,
+### similarily to the scoring module. this would allow avoiding recalculation of stone groups, etc each time
 
+module Rulebook
   class Handler
     attr_reader :size, :group_ids, :members, :liberties, :colors, :group_count, :captured_stones
     attr_reader :_ko_position, :board
@@ -501,9 +506,6 @@ module Rulebook
       @colors.delete(group_2)
     end
 
-    # a neighbor is a directly adjacent tile (horizontal and vertical, not diagonal)
-    # middle tiles have 4, edges have 3, corners only have 2
-
     def neighbors(pos)
       neighbors_hash(pos).values
     end
@@ -545,5 +547,4 @@ module Rulebook
     end
 
   end
-
 end

@@ -7,17 +7,7 @@ class Board < ActiveRecord::Base
   }
 
   def self.initial_board(game)
-    board = new(
-      game: game,
-      move_num: 0,
-      captured_stones: 0
-    )
-
-    # if handicap, create initial board with pre-placed handicap stones, else leave blank
-    if game.handicap
-      logger.warn '-- inside Board.initial_board -- HANDICAP NOT YET IMPLEMENTED'
-    end
-
+    board = new(game: game, move_num: 0, captured_stones: 0)
     board.save
   end
 
@@ -26,7 +16,7 @@ class Board < ActiveRecord::Base
       Array.new(game.board_size**2) { |n| [n, state(n)] }
     else
       logger.info "-- board.pos_nums_and_tile_states -- pos_list: #{pos_list.inspect}"
-      pos_list.to_a.sort.map { |n| [n, state(n)] }
+      pos_list.to_a.map { |n| [n, state(n)] }
     end
   end
 
@@ -34,8 +24,7 @@ class Board < ActiveRecord::Base
     Array.new(game.board_size**2) { |n| state(n) }
   end
 
-  # this should be implemented better. we should have smart defaults for attributes,
-  # and only change releveant ones
+  # should be better implemented. should have smart defaults for attributes, and only change relevant ones
   def replicate_and_update(pos, captured_count, color)
     new_board = dup
     new_board.game = game
@@ -45,7 +34,6 @@ class Board < ActiveRecord::Base
     new_board.captured_stones = captured_count
     new_board.ko = nil
     new_board.pass = false
-
     new_board
   end
 
@@ -54,12 +42,7 @@ class Board < ActiveRecord::Base
   end
 
   def remove_stones(new_captures)
-    logger.info "-- Board.remove_stones: new_captures= #{new_captures.inspect}"
-
-    if new_captures
-      new_captures.each { |pos| set_state(pos, GoApp::EMPTY_TILE) }
-    end
-
+    new_captures.each { |pos| set_state(pos, GoApp::EMPTY_TILE) } if new_captures
     self.captured_stones += new_captures.size
   end
 
@@ -73,29 +56,6 @@ class Board < ActiveRecord::Base
 
   def time_left
     seconds_remaining
-  end
-
-  def stone_lists
-    black_stones, white_stones = [], []
-    (0...game.board_size**2).each do |n|
-      val = state(n)
-      if val == GoApp::BLACK_STONE
-        black_stones << n
-      elsif val == GoApp::WHITE_STONE
-        white_stones << n
-      end
-    end
-    [black_stones, white_stones]
-  end
-
-  def black_stones
-    black_stones, white_stones = stone_lists
-    black_stones
-  end
-
-  def white_stones
-    black_stones, white_stones = stone_lists
-    white_stones
   end
 
   def inspect

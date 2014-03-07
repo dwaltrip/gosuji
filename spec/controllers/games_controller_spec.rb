@@ -22,35 +22,6 @@ end
 
 describe GamesController do
 
-  # finish this sometime
-  # right now isnt what we want, only the last 4 actions are xhr
-  #context "if the user is not logged in" do
-  #  Action = Struct.new(:method, :name, :params)
-  #  actions = [
-  #    Action.new(:get, :index),
-  #    Action.new(:get, :show, { id: 1 }),
-  #    Action.new(:get, :join, { id: 1 }),
-  #    Action.new(:post, :new_move, { id: 1 }),
-  #    Action.new(:post, :pass_turn, { id: 1 }),
-  #    Action.new(:post, :undo_turn, { id: 1 }),
-  #    Action.new(:post, :request_undo, { id: 1 })
-  #  ]
-  #  actions_that_dont_redirect = [:index]
-
-  #  actions.each do |action|
-  #    desc = "#{action.name.inspect} redirects to login"
-
-  #    it "redirects requests for #{action.inspect} to login page, if not logged in" do
-  #      game = create(:new_active_game)
-  #      Board.initial_board(game)
-  #      params = action.params || {}
-  #      xhr action.method, action.name, params
-
-  #      expect(response).to redirect_to log_in_url
-  #    end
-  #  end
-  #end
-
   context "#new_move" do
     it "calls game.new_move with correct parameters" do
       game = setup_for_game_action(:new_move)
@@ -62,7 +33,6 @@ describe GamesController do
 
     it "publishes game update data to NodeJS server via redis (for websocket updating)" do
       game = setup_for_game_action(:new_move)
-      #allow($redis).to receive(:publish)
       xhr :post, :new_move, id: game, new_move: 2
 
       expect($redis).to have_received(:publish).once
@@ -88,7 +58,6 @@ describe GamesController do
 
     it "publishes game update data NodeJS server via redis (for websocket updating)" do
       game = setup_for_game_action(:pass)
-      #allow($redis).to receive(:publish)
       xhr :post, :pass_turn, id: game
 
       expect($redis).to have_received(:publish).once

@@ -22,13 +22,6 @@ var SockjsClient = function(sockjs_url, options) {
     };
 
     this.send = function(data) {
-        /*
-        if (typeof data !== 'string') {
-            write_to_server(JSON.stringify(data));
-        } else {
-            write_to_server(data);
-        }
-        */
         // if we JSON.stringify everything, then on server side we simply JSON.parse everything
         write_to_server(JSON.stringify(data));
     };
@@ -91,7 +84,6 @@ var SockjsClient = function(sockjs_url, options) {
         sockjs.onclose = function(e) {
             log("SockJS connection closed. protocol: '" + JSON.stringify(sockjs.protocol) + "'");
             client_events.emit('close', e.code, e.reason);
-            //client_events.emit('close', e.code, e.reason, e.wasClean);
         };
 
         sockjs.onerror = function(err) {

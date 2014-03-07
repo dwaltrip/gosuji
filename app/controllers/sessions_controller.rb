@@ -21,13 +21,11 @@ class SessionsController < ApplicationController
   end
 
   def destroy
-    user = current_user
-
-    if user.nil?
+    if current_user.nil?
       logger.info "-- sessions#destroy: log out attempted with current_user = nil"
     else
-      user_log_info = "user.id= #{user.id.inspect}, user.username= #{user.username.inspect}"
-      logger.info "-- sessions#destroy: log out. #{user_log_info}"
+      user_log_info = "id= #{current_user.id.inspect}, username= #{current_user.username.inspect}"
+      logger.info "-- sessions#destroy: log out with current_user -- #{user_log_info}"
     end
 
     session[:user_id] = nil
