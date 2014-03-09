@@ -9,6 +9,7 @@ gem 'redis', "~> 3.0.1"
 
 # Use postgresql as the database for Active Record
 gem 'pg', '0.15.1'
+gem 'sqlite3', :group => :development
 
 gem 'bcrypt-ruby', '3.0.1'
 
@@ -31,9 +32,9 @@ group :test do
   gem 'i18n', '>= 0.6.9'
 
   ## used for more advanced testing set-up
-  gem 'rb-notifu', '0.0.4'
-  gem 'win32console', '1.3.2'
-  gem 'wdm', '0.1.0'
+  gem 'rb-notifu', '0.0.4' if RUBY_PLATFORM =~ /mingw32/i
+  gem 'win32console', '1.3.2' if RUBY_PLATFORM =~ /mingw32/i
+  gem 'wdm', '0.1.0' if RUBY_PLATFORM =~ /mingw32/i
 
   ## used for more advanced testing set-up
   gem 'spork-rails', '4.0.0'

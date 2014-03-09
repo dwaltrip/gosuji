@@ -12,7 +12,7 @@ GoSuji was built using modern web development tools:
 
 * Ruby on Rails
   - The large majority of all application logic. Everything except for websockets is handled by Rails
-  - [POROs](http://blog.jayfields.com/2007/10/ruby-poro.html) are utilized to process moves and scoring actions (/lib directory). This helps us with separation of concerns and keeping models skinnier.
+  - [POROs](http://blog.jayfields.com/2007/10/ruby-poro.html) are utilized to process moves and scoring actions (/lib directory). This helps maintain separation of concerns and keeps the models skinnier.
 * Node.js & websockets
   - A [separate Node.js app](https://github.com/dwaltrip/gosuji-node-server) is used to handle the realtime aspects of the site
   - Receives data from Rails (via Redis) and sends this data to the necessary clients via websockets
@@ -45,19 +45,21 @@ In the works:
   3. Node.js 0.10.0 or higher
   4. npm 1.2.0 or higher
   5. Redis 2.4 or higher
+  6. PostgreSQL or SQLite
 
 2. Setup the Rails app
-  1. Clone the repository: `git clone git@github.com:dwaltrip/gosuji.git`
+  1. Clone the repository: `git clone https://github.com/dwaltrip/gosuji.git`
   2. Install gems: `bundle install`
   3. Setup environment variables. The [figaro gem](https://github.com/laserlemon/figaro) is used to manage these.
-    1. Change the name of `config/application (example).yml` to `config/application.yml`.
+    1. Change the name of `config/application-(example).yml` to `config/application.yml`.
     1. If you aren't using the default port for Redis or you modify the port used by the Node.js app, you will need to edit the `development:` section of `application.yml` to reflect this.
-  4. Add a `config/database.yml` file. For simply messing around, the default file genereated by Rails for new projects (`rails new my_example_project`) should work just fine.
+  4. Change the name of `config/database-(example).yml` to `config/database.yml`. To use PostgreSQL instead of SQLite, see [this Railscast](http://railscasts.com/episodes/342-migrating-to-postgresql).
   5. Run the database migrations: `bundle exec rake db:migrate`.
 
 3. Setup the Node app
-  1. Clone the repository: `git clone git@github.com:dwaltrip/gosuji-node-server.git`
+  1. Clone the repository: `git clone https://github.com/dwaltrip/gosuji-node-server.git`
   2. Install packages: `npm install`
+  3. Change the name of `development-config-(example).js` to `development-config.js`. Edit this file if you are not using the default port for redis.
 
 4. Run the tests and verify that they pass (Optional)
   1. The gameplay integration tests use [Poltergiest](https://github.com/jonleighton/poltergeist), which depends on PhantomJS. Follow [these instructions](https://github.com/jonleighton/poltergeist#installing-phantomjs) to install it. Alternatively, you can skip this portion of the test suite. To do so, open `spec/features/gameplay_actions_spec.rb` and, at the top of the file, change `feature "gameplay actions" do` to `feature "gameplay actions", skip: true do`.
@@ -67,6 +69,6 @@ In the works:
 
 5. Run GoSuji!
   1. Start the Redis server: `redis-server` (my dev machine starts a background Redis process on start up, so I skip this step)
-  2. Start the Rails server: `rails s`
+  2. Start the Rails server: `rails server`
   3. Start the Node.js server: `node server.js`
   4. Open your browser and visit `localhost:3000`. Go is a two player game, so you will have to open a second browser to play against yourself :)
