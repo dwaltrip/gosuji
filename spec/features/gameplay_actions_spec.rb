@@ -1,7 +1,7 @@
 require 'spec_helper'
 
 # these specs need to be run with Node.js app also running
-feature "gameplay actions" do
+feature "gameplay actions", integration: true do
 
   scenario "players play several basic moves back and forth" do
     players, game, color_map = setup_game_and_sessions

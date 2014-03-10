@@ -1,6 +1,6 @@
 require 'spec_helper'
 
-feature "games index" do
+feature "games index", integration: true do
 
   scenario "user views list of open games" do
     open_games = create_list(:game, 2, description: "open game")

@@ -663,7 +663,7 @@ describe Scoring::BoardAnalyzer do
 
 end
 
-describe Scoring::Scorebot, focus: true do
+describe Scoring::Scorebot do
 
   TERRITORY_STATUS = { :black => :black, :white => :white }
   COLORS = [:black, :white]

@@ -52,7 +52,7 @@ In the works:
   2. Install gems: `bundle install`
   3. Setup environment variables. The [figaro gem](https://github.com/laserlemon/figaro) is used to manage these.
     1. Change the name of `config/application-(example).yml` to `config/application.yml`.
-    1. If you aren't using the default port for Redis or you modify the port used by the Node.js app, you will need to edit the `development:` section of `application.yml` to reflect this.
+    1. If you aren't using the default port for Redis or if you modify the port used by the Node.js app, you will need to edit the `development:` section of `application.yml` to reflect this.
   4. Change the name of `config/database-(example).yml` to `config/database.yml`. To use PostgreSQL instead of SQLite, see [this Railscast](http://railscasts.com/episodes/342-migrating-to-postgresql).
   5. Run the database migrations: `bundle exec rake db:migrate`.
 
@@ -62,10 +62,10 @@ In the works:
   3. Change the name of `development-config-(example).js` to `development-config.js`. Edit this file if you are not using the default port for redis.
 
 4. Run the tests and verify that they pass (Optional)
-  1. The gameplay integration tests use [Poltergiest](https://github.com/jonleighton/poltergeist), which depends on PhantomJS. Follow [these instructions](https://github.com/jonleighton/poltergeist#installing-phantomjs) to install it. Alternatively, you can skip this portion of the test suite. To do so, open `spec/features/gameplay_actions_spec.rb` and, at the top of the file, change `feature "gameplay actions" do` to `feature "gameplay actions", skip: true do`.
+  1. The gameplay integration tests use [Poltergiest](https://github.com/jonleighton/poltergeist), which depends on PhantomJS. Follow [these instructions](https://github.com/jonleighton/poltergeist#installing-phantomjs) to install it. Alternatively, you can skip the integrations tests.
   2. Migrate the test database: `bundle exec rake db:migrate RAILS_ENV=test`
   3. If including the integration tests, start up Node and Redis (see section 5)
-  4. Run the tests: `bundle exec rspec`
+  4. Run the tests: `bundle exec rspec`. To skip the integration tests, add this option to the rspec command: `--tag ~integration`.
 
 5. Run GoSuji!
   1. Start the Redis server: `redis-server` (my dev machine starts a background Redis process on start up, so I skip this step)

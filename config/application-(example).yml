@@ -8,3 +8,7 @@ development:
 production:
   REDIS_URL: '...'
   NODEJS_URL: '...'
+
+test:
+  NODEJS_URL: 'http://localhost:5000/realtime'
+  REDIS_URL: '//127.0.0.1:6379/0'
