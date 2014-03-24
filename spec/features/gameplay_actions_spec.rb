@@ -487,7 +487,7 @@ end
 
 def create_active_game(players, size=GoApp::BOARD_SIZE)
   player1, player2 = *players
-  game = create(:new_active_game, black_player: player1, white_player: player2, board_size: size)
+  game = create(:new_active_game, black_user: player1, white_user: player2, board_size: size)
   Board.initial_board(game)
 
   game

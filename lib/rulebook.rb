@@ -2,7 +2,7 @@
 ### refactor this entire module to make use of the BoardAnalyzer, StoneGroup, and TileZone objects
 ### that we created for the Scoring module. we can then use those objects to improve the efficiency
 ### and simplicity of our move processing logic, and perhaps cache the analysis data between turns in $redis,
-### similarily to the scoring module. this would allow avoiding recalculation of stone groups, etc each time
+### similarly to the scoring module. this would allow avoiding recalculation of stone groups, etc each time
 
 module Rulebook
   class Handler

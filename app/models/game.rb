@@ -1,8 +1,8 @@
 class Game < ActiveRecord::Base
-  belongs_to :black_player, :class_name => 'User'
-  belongs_to :white_player, :class_name => 'User'
+  belongs_to :black_user, :class_name => 'User'
+  belongs_to :white_user, :class_name => 'User'
   belongs_to :creator, :class_name => 'User'
-  belongs_to :winner, :class_name => 'User'
+  belongs_to :winning_user, :class_name => 'User'
   has_many :boards, -> { order 'move_num ASC' }, inverse_of: :game
 
   validates :description, length: { maximum: 40 }
@@ -28,6 +28,17 @@ class Game < ActiveRecord::Base
   scope :open, lambda { where(:status => OPEN) }
   scope :active, lambda { where(:status => ACTIVE) }
 
+  def black_player
+    black_user
+  end
+
+  def white_player
+    white_user
+  end
+
+  def winner
+    winning_user
+  end
 
   def active_board
     boards.last
@@ -178,11 +189,11 @@ class Game < ActiveRecord::Base
     end
 
     if challenger_is_black then
-      self.black_player = challenger
-      self.white_player = creator
+      self.black_user = challenger
+      self.white_user = creator
     elsif
-      self.black_player = creator
-      self.white_player = challenger
+      self.black_user = creator
+      self.white_user = challenger
     end
 
     self.status = ACTIVE
@@ -293,12 +304,12 @@ class Game < ActiveRecord::Base
     self.end_type = WIN_BY_SCORE
 
     if black_score > white_score
-      self.winner = black_player
+      self.winning_user = black_user
     elsif white_score > black_score
-      self.winner = white_player
+      self.winning_user = white_user
     else
       self.end_type = TIE
-      self.winner = nil
+      self.winning_user = nil
     end
 
     finalize_game
@@ -310,7 +321,7 @@ class Game < ActiveRecord::Base
       self.white_score = nil
 
       self.end_type = RESIGN
-      self.winner = opponent(player)
+      self.winning_user = opponent(player)
 
       finalize_game
       true

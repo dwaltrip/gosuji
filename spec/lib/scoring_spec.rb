@@ -897,7 +897,7 @@ describe Scoring::Scorebot do
     end
   end
 
-  context "with slightly more complex sequences of marking dead/not-dead", focus: true do
+  context "with slightly more complex sequences of marking dead/not-dead" do
     first_stone_to_mark = 130
     second_stone_to_mark = 132
 
