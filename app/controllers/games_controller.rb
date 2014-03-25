@@ -2,6 +2,7 @@ class GamesController < ApplicationController
   before_filter :require_login, :except => :index
   before_action :find_game, except: [:index, :new, :create]
   before_action :generate_connection_id, only: [:index, :show]
+  helper_method :current_player
 
   def index
     @open_games = Game.open.order('created_at DESC')
@@ -51,18 +52,18 @@ class GamesController < ApplicationController
       @just_entered_scoring_phase = true
 
       tiles_to_render = @game.tiles_to_render_during_scoring(overwrite_data_store=true)
-      @tiles = decorated_tiles(current_user, tiles_to_render)
+      @tiles = decorated_tiles(current_player, tiles_to_render)
       @json_scoring_data = json_scoring_updates(reset_content_type_to_html=true)
     end
-    @tiles = decorated_tiles(current_user, @game.tiles_to_render(current_user))
+    @tiles = decorated_tiles(current_player, @game.tiles_to_render(current_player))
   end
 
   def new_move
-    update_helper(@game.new_move(params[:new_move].to_i, current_user))
+    update_helper(@game.new_move(params[:new_move].to_i, current_player))
   end
 
   def pass_turn
-    if @game.pass(current_user)
+    if @game.pass(current_player)
       if @game.active?
         update_helper(true)
       elsif @game.end_game_scoring?
@@ -76,12 +77,12 @@ class GamesController < ApplicationController
 
   def undo_turn
     valid_undo_approval = (params[:undo_status] == "approved" && decrypt(params[:move_num]) == @game.move_num)
-    undo_requester = @game.opponent(current_user)
+    undo_requester = current_player.opponent
     update_helper(valid_undo_approval && @game.undo(undo_requester))
   end
 
   def request_undo
-    if @game.active? && @game.has_player?(current_user)
+    if @game.active? && @game.has_user?(current_user)
       # the move_num value encrypted here is verified in games#undo_turn if the undo request is approved
       approval_form = render_to_string(partial: 'undo_approval_form', locals: { move_num: encrypt(@game.move_num) })
       send_realtime_data(event_name: "undo-request", payload: { approval_form: approval_form })
@@ -108,7 +109,7 @@ class GamesController < ApplicationController
   end
 
   def resign
-    if @game.resign(current_user)
+    if @game.resign(current_player)
       data = JSON.parse(render_to_string(template: 'games/finalize_game', formats: [:json]))
       send_realtime_data(event_name: "game-finished", payload: data)
       respond_to { |format| format.json { render 'games/finalize_game' } }
@@ -123,19 +124,19 @@ class GamesController < ApplicationController
     pretty_log_game_info("-- games#update_helper -- ")
 
     if update_action_was_successful
-      @tiles = decorated_tiles(current_user, @game.tiles_to_render(current_user, updates_only=true))
+      @tiles = decorated_tiles(current_player, @game.tiles_to_render(current_player, updates_only=true))
 
-      opponent = @game.opponent(current_user)
+      opponent = current_player.opponent
       opponent_data = JSON.parse(render_to_string(template: 'games/update', formats: [:json], locals: {
         tiles: decorated_tiles(opponent, @game.tiles_to_render(opponent, updates_only=true)),
-        user: opponent
+        player: opponent
       }))
 
       logger.info "-- games#update_helper -- opponent_data: #{opponent_data.inspect}"
       send_realtime_data(event_name: "game-update", payload: opponent_data)
 
       respond_to do |format|
-        format.json { render 'games/update', locals: { tiles: @tiles, user: current_user } }
+        format.json { render 'games/update', locals: { tiles: @tiles, player: current_player } }
       end
     else
       render nothing: true
@@ -145,7 +146,7 @@ class GamesController < ApplicationController
   def scoring_helper(scoring_update_was_successful)
     if scoring_update_was_successful
       overwrite_data_store = (true if @just_entered_scoring_phase) || false
-      @tiles = decorated_tiles(current_user, @game.tiles_to_render_during_scoring(overwrite_data_store))
+      @tiles = decorated_tiles(current_player, @game.tiles_to_render_during_scoring(overwrite_data_store))
 
       send_realtime_data(event_name: "scoring-update", payload: JSON.parse(json_scoring_updates))
       respond_to { |format| format.json { render 'games/scoring' } }
@@ -162,8 +163,6 @@ class GamesController < ApplicationController
 
 
   def decorated_tiles(player, tiles_to_render)
-    logger.info "-- games#decorated_tiles -- #{player.username} as #{@game.player_color(player)}"
-    viewer = @game.viewer(player)
     last_pos = @game.active_board.pos
 
     scoring_display_mode = @game.end_game_scoring? || @game.finished?
@@ -175,7 +174,7 @@ class GamesController < ApplicationController
         board_size: @game.board_size,
         state: tile_state,
         pos: pos,
-        viewer: viewer,
+        user: player,
         game_status: @game.status,
         invalid_moves: invalid_moves
       )
@@ -206,6 +205,10 @@ class GamesController < ApplicationController
       flash[:alert] = "The requested page does not exist."
       redirect_to games_path
     end
+  end
+
+  def current_player
+    @current_player ||= @game.current_player(current_user)
   end
 
   def generate_connection_id

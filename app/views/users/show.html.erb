@@ -12,7 +12,8 @@
 
   <thead>
     <tr>
-      <th class='username-col'>Opponent</th>
+      <th class='profile-username-col'>Black</th>
+      <th class='profile-username-col'>White</th>
       <th class='board-size-col centered'>Size</th>
       <th class='profile-description-col'>Description</th>
       <th class='active-col centered'>Active?</th>
@@ -28,7 +29,8 @@
       <tr class='active-game'>
     <% end %>
 
-    <td><%= g.opponent(current_user).username if g.opponent(current_user) %></td>
+    <td><%= g.black_user.username %></td>
+    <td><%= g.white_user.username %></td>
     <td class='centered'><%= g.board_size %> x <%= g.board_size %></td>
     <td><%= g.description %></td>
     <td class='centered'><%= ("Yes" if g.active?) || "-" %></td>

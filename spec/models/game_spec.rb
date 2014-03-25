@@ -100,7 +100,7 @@ describe Game do
     it "doesn't update or create, and returns false if other invalid user is current user" do
       game = create(:new_active_game)
       Board.initial_board(game)
-      other_user = create(:user)
+      other_user = Player.new(create(:user), game)
       prev_board = game.boards[-1]
 
       expect(game.new_move(5, other_user)).to be_false
@@ -226,7 +226,7 @@ describe Game do
     it "doesn't update or create, and returns false if other invalid user is current user" do
       game = create(:new_active_game)
       Board.initial_board(game)
-      other_user = create(:user)
+      other_user = Player.new(create(:user), game)
       prev_board = game.boards[-1]
 
       expect(game.pass(other_user)).to be_false
@@ -316,7 +316,7 @@ describe Game do
     it "does not perform updates/deletions and returns false if current user is not a player in this game" do
       game = setup_for_undo
       prev_boards = game.boards.to_a
-      invalid_player = create(:user)
+      invalid_player = Player.new(create(:user), game)
 
       # white player hasn't played a move yet
       expect(game.undo(invalid_player)).to be_false
@@ -376,7 +376,7 @@ end
 # this could be a little faster if it simply modifies the state of the initial board
 def play_some_moves(game)
   first_player = game.active_player
-  second_player = game.opponent(first_player)
+  second_player = game.inactive_player
   size = game.board_size
   moves = [size + 1, 2*size - 2, 3*size + 1, 4*size - 2]
 

@@ -11,5 +11,5 @@ json.tiles tiles do |tile|
 end
 
 # after move 1 and move 2 are the only times that the undo button disabled status is affected
-json.undo_button_disabled (!@game.played_a_move?(user)) if @game.move_num <= 2
-json.active_player (@game.active_player == user)
+json.undo_button_disabled (!player.played_a_move?) if @game.move_num <= 2
+json.active_player player.their_turn?

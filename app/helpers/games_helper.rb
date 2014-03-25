@@ -2,10 +2,6 @@ module GamesHelper
 
   RENDERER = ActionController::Base.new()
 
-  def disable_turn_actions?(game)
-    current_user != game.active_player
-  end
-
   def board_size_options
     options_for_select(
       (GoApp::MIN_BOARD_SIZE..GoApp::BOARD_SIZE).to_a,
@@ -25,7 +21,7 @@ module GamesHelper
 
     else
       msg << "Move #{game.move_num}"
-      msg << " (#{game.player_color(game.inactive_player).capitalize[0]}"
+      msg << " (#{game.inactive_player.color.capitalize[0]}"
       if board.pos
         col_num = board.pos % game.board_size
         row_label = game.board_size - (board.pos / game.board_size)
@@ -37,7 +33,7 @@ module GamesHelper
       end
     end
 
-    msg << ": #{game.player_color(game.active_player).capitalize} to play" unless game.finished?
+    msg << ": #{game.active_player.color.capitalize} to play" unless game.finished?
     msg
   end
 
@@ -64,9 +60,9 @@ module GamesHelper
   end
 
   def score_details_message(game, player)
-    details_message = "Score for #{game.player_color(player)}: "
+    details_message = "Score for #{player.color}: "
     details_message << game.point_details(player).map { |type, points| "#{prettify(points)} #{type}" }.join(" + ")
-    details_message << " = #{prettify(game.point_count(player))}"
+    details_message << " = #{prettify(player.point_count)}"
   end
 
   def final_result_message(game)
@@ -74,17 +70,15 @@ module GamesHelper
     if game.tie?
       msg << "tie game."
     else
-      winner = game.winner
-      loser = game.opponent(winner)
+      winner_name = "#{game.winner.username} (#{game.winner.color})"
+      loser_name = "#{game.winner.opponent.username} (#{game.winner.opponent.color})"
 
       if game.win_by_resign?
-        msg << "#{loser.username} (#{game.player_color(loser)}) has resigned."
-        msg << " #{winner.username} (#{game.player_color(winner)}) has won."
+        msg << "#{loser_name} has resigned. #{winner_name} has won."
       elsif game.win_by_time?
-        msg << "#{loser.username} (#{game.player_color(winner)}) ran out of time."
-        msg << " #{winner.username} (#{game.player_color(winner)}) has won."
+        msg << "#{loser_name} ran out of time. #{winner_name} has won."
       else
-        msg << "#{winner.username} (#{game.player_color(winner)}) has won by #{prettify(game.point_difference)} points."
+        msg << "#{winner_name} has won by #{prettify(game.point_difference)} points."
       end
     end
 
@@ -96,9 +90,7 @@ module GamesHelper
     if game.tie?
       msg << "Tie"
     elsif game.finished?
-      winner = game.winner
-      loser = game.opponent(game.winner)
-      msg << "#{game.player_color(winner).capitalize[0]}+"
+      msg << "#{game.winner.color.capitalize[0]}+"
       msg << (("R" if game.win_by_resign?) || ("time" if game.win_by_time?) || "#{prettify(game.point_difference)}")
     end
     msg

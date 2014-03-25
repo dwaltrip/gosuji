@@ -4,7 +4,8 @@ require 'spec_helper'
 feature "gameplay actions", integration: true do
 
   scenario "players play several basic moves back and forth" do
-    players, game, color_map = setup_game_and_sessions
+    players, game = setup_game_and_sessions
+    colors = { players[0] => :black, players[1] => :white }
     size = game.board_size
 
     tiles = [(size + 1), (2 * size - 2), (4 * size - 2), (3 * size + 1)].map { |n| selector_for_tile(n) }
@@ -18,7 +19,7 @@ feature "gameplay actions", integration: true do
 
     # alternate between black and white player, playing a move, and make sure browser displays board properly
     Cycle.new(players).cycle(tiles.length) do |current_player, counter|
-      color = color_map[current_player.id]
+      color = colors[current_player]
       move_num = counter + 1
       stone_counts[color] += 1
       tile = tiles[counter]
@@ -56,7 +57,7 @@ feature "gameplay actions", integration: true do
 
 
   scenario "player passes their turn" do
-    players, game, color_map = setup_game_and_sessions
+    players, game = setup_game_and_sessions
     size = game.board_size
     player1, player2 = players
     tile = selector_for_tile(1)
@@ -68,10 +69,13 @@ feature "gameplay actions", integration: true do
     end
 
     # second player passes their turn. expect ajax request
-    as(player2) { expect{ click_button "Pass" }.to change{ active_ajax_requests }.by(1) }
+    as(player2) do
+      expect(page).to have_status_message(move_number: 1)
+      expect{ click_button "Pass" }.to change{ active_ajax_requests }.by(1)
+    end
 
     as(players) do |player|
-      expect(page).to have_status_message(pass: true, color: color_map[player2.id])
+      expect(page).to have_status_message(pass: true, color: :white)
       expect(page).to have_status_message(move_number: 2)
       expect(find(tile)).to have_stone(highlighted: false) # last played stone shouldn't be highlighted
     end
@@ -95,11 +99,12 @@ feature "gameplay actions", integration: true do
 
 
   scenario "player plays move, then requests undo, and other player approves the undo" do
-    players, game, color_map = setup_game_and_sessions
+    players, game = setup_game_and_sessions
     size = game.board_size
 
     player1, player2 = players
-    opponent = { player1.id => player2, player2.id => player1 }
+    colors = { player1 => :black, player2 => :white }
+    opponent = { player1 => player2, player2 => player1 }
     tiles = [selector_for_tile(3), selector_for_tile(11), selector_for_tile(19)]
 
     # cycle through tile array, alternating moves between black player & white player
@@ -118,7 +123,7 @@ feature "gameplay actions", integration: true do
     # both now request undo, with player2 going first
     # undo for player2 reverts two moves (move 2 & 3) -- undo for player1 reverts one move (move 1)
     players.reverse_each do |requester|
-      approver = opponent[requester.id]
+      approver = opponent[requester]
       reverted_tile_count = if (requester == player2) then 2 else 1 end
 
       # make the undo request. expect an ajax request
@@ -146,7 +151,7 @@ feature "gameplay actions", integration: true do
 
         # if there are any stones still on board, check that the most recent one is highlighted
         if tiles.length > 0
-          expect(find(tiles[-1])).to have_stone(color: color_map[approver.id], highlighted: true)
+          expect(find(tiles[-1])).to have_stone(color: colors[approver], highlighted: true)
         end
       end
 
@@ -207,7 +212,7 @@ feature "gameplay actions", integration: true do
 
     move_count = initial_moves[:black].length + initial_moves[:white].length
     size = 5
-    players, game, color_map = setup_game_and_sessions(initial_moves: initial_moves, board_size: size)
+    players, game = setup_game_and_sessions(initial_moves: initial_moves, board_size: size)
     game.komi = komi[:white]
     game.save
     black_player, white_player = players
@@ -454,12 +459,12 @@ end
 
 # create game, load game in browser for both players, and make sure websockets are working
 def setup_game_and_sessions(options={})
-  players = [create(:user, username: 'player1'), create(:user, username: 'player2')]
   board_size = options[:board_size] || GoApp::MIN_BOARD_SIZE
-  game = create_active_game(players, board_size=board_size)
-  color_map = Hash[players.map { |player| [player.id, game.player_color(player)] }]
+  game, users = create_active_game(board_size=board_size)
 
   if options.key?(:initial_moves)
+    players = users.map { |user| Player.new(user, game) }
+
     initial_moves = []
     options[:initial_moves][:black].length.times do |n|
       [:black, :white].each do |color|
@@ -474,7 +479,7 @@ def setup_game_and_sessions(options={})
   end
 
   # both players visit site
-  as(players) do |player|
+  as(users) do |player|
     sign_in_as player, "secret"
     visit game_path(game)
 
@@ -482,15 +487,15 @@ def setup_game_and_sessions(options={})
     page.wait_until(5) { page.evaluate_script "socket !== null && socket.protocol !== null" }
   end
 
-  [players, game, color_map]
+  [users, game]
 end
 
-def create_active_game(players, size=GoApp::BOARD_SIZE)
-  player1, player2 = *players
+def create_active_game(size=GoApp::BOARD_SIZE)
+  player1, player2 = create(:user, username: 'player1'), create(:user, username: 'player2')
   game = create(:new_active_game, black_user: player1, white_user: player2, board_size: size)
   Board.initial_board(game)
 
-  game
+  [game, [player1, player2]]
 end
 
 
