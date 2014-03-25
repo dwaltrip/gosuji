@@ -53,7 +53,11 @@ function join_game_callback(data) {
 }
 
 function add_open_game(open_game_html) {
-    $('tr.open_game').first().before(open_game_html);
+    if ($('tr.open_game').length > 0)
+        $('tr.open_game').first().before(open_game_html);
+    else
+        $('#open-games-table').append(open_game_html);
+
 }
 
 function remove_open_game(game_id) {
