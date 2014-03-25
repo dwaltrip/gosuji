@@ -11,7 +11,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20140224214828) do
+ActiveRecord::Schema.define(version: 20140324050009) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
@@ -394,8 +394,8 @@ ActiveRecord::Schema.define(version: 20140224214828) do
   add_index "boards", ["game_id"], name: "index_boards_on_game_id", using: :btree
 
   create_table "games", force: true do |t|
-    t.integer  "black_player_id"
-    t.integer  "white_player_id"
+    t.integer  "black_user_id"
+    t.integer  "white_user_id"
     t.integer  "creator_id",                            null: false
     t.string   "description",                limit: 40
     t.integer  "end_type",                   limit: 2
@@ -410,7 +410,7 @@ ActiveRecord::Schema.define(version: 20140224214828) do
     t.datetime "finished_at"
     t.datetime "created_at"
     t.datetime "updated_at"
-    t.integer  "winner_id"
+    t.integer  "winning_user_id"
     t.float    "black_score"
     t.float    "white_score"
     t.text     "dead_stones_serialized"
@@ -419,9 +419,9 @@ ActiveRecord::Schema.define(version: 20140224214828) do
     t.integer  "white_dead_stone_count",     limit: 2
   end
 
-  add_index "games", ["black_player_id"], name: "index_games_on_black_player_id", using: :btree
-  add_index "games", ["white_player_id"], name: "index_games_on_white_player_id", using: :btree
-  add_index "games", ["winner_id"], name: "index_games_on_winner_id", using: :btree
+  add_index "games", ["black_user_id"], name: "index_games_on_black_user_id", using: :btree
+  add_index "games", ["white_user_id"], name: "index_games_on_white_user_id", using: :btree
+  add_index "games", ["winning_user_id"], name: "index_games_on_winning_user_id", using: :btree
 
   create_table "users", force: true do |t|
     t.string   "username",                    null: false

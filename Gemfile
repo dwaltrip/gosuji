@@ -26,7 +26,8 @@ group :test do
   gem 'selenium-webdriver', '2.35.1'
   gem 'poltergeist'
   gem 'capybara', '2.1.0'
-  gem "factory_girl_rails", "~> 4.0"
+  gem 'factory_girl_rails', '~> 4.0'
+  gem 'database_cleaner'
 
   # avoid annoying I18n warning during rspec testing
   gem 'i18n', '>= 0.6.9'
@@ -37,9 +38,9 @@ group :test do
   gem 'wdm', '0.1.0' if RUBY_PLATFORM =~ /mingw32/i
 
   ## used for more advanced testing set-up
-  gem 'spork-rails', '4.0.0'
-  gem 'guard-spork', '1.5.0'
-  gem 'childprocess', '0.3.9'
+  #gem 'spork-rails', '4.0.0'
+  #gem 'guard-spork', '1.5.0'
+  #gem 'childprocess', '0.3.9'
 end
 
 # Use SCSS for stylesheets

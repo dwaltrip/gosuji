@@ -21,8 +21,8 @@ FactoryGirl.define do
     end
 
     factory :new_active_game, traits: [:active] do
-      association :black_player, factory: :user
-      association :white_player, factory: :user
+      association :black_user, factory: :user
+      association :white_user, factory: :user
     end
   end
 end

@@ -9,28 +9,26 @@
   <div id='table-container'>
     <div id='board_container' class='centered-tables'>
       <div id='game-actions-container'>
-        <% observer = !@game.has_player?(current_user) %>
-
         <%= form_tag({ action: :pass_turn }, { id: 'pass-turn-form' }) do %>
           <%= submit_tag 'Pass', class: 'button', id: 'pass-button',
-            disabled: (current_user != @game.active_player) || @game.finished? %>
+            disabled: current_player.not_their_turn? || @game.finished? %>
         <% end %>
 
         <%= form_tag({ action: :request_undo }, { id: 'request-undo-form', remote: true }) do %>
           <%= submit_tag 'Undo', class: 'button', id: 'undo-button',
-            disabled: observer || !@game.played_a_move?(current_user) || @game.finished? %>
+            disabled: current_player.hasnt_played_a_move? || @game.finished? %>
           <%= hidden_field_tag 'connection_id', @connection_id %>
         <% end %>
 
         <%= form_tag({ action: :done_scoring }, { id: 'done-scoring-form' }) do %>
           <% css_classes = ["button", ("hidden" if !@game.end_game_scoring?)] %>
           <%= submit_tag 'Done', name: 'done', class: css_classes.compact.join(" "), id: "done-scoring-button",
-            disabled: observer || @game.finished? %>
+            disabled: current_player.not_part_of_game? || @game.finished? %>
         <% end %>
 
         <%= form_tag({ action: :resign }, { id: 'resign-form' }) do %>
           <%= submit_tag 'Resign', name: 'resign', class: "button", id: "resign-button",
-            disabled: observer || @game.finished? %>
+            disabled: current_player.not_part_of_game? || @game.finished? %>
         <% end %>
       </div>
 
@@ -69,7 +67,7 @@
 <%= javascript_tag do %>
   window.room_id = '<%= @room_id %>';
   window.connection_id = '<%= @connection_id %>';
-  window.username = '<%= current_user.username %>';
+  window.username = '<%= current_player.username %>';
 
   <% if @just_entered_scoring_phase %>
     $(document).ready(function() {

@@ -9,7 +9,7 @@ class TilePresenter
     @board_size = params[:board_size]
     @state = params[:state]
     @pos = params[:pos]
-    @viewer = params[:viewer]
+    @user = params[:user]
     @game_status = params[:game_status]
     @invalid_moves = params[:invalid_moves] || Hash.new { |hsh, k| hsh[k] = Set.new }
 
@@ -23,7 +23,7 @@ class TilePresenter
   end
 
   def preview_stone_path
-    "#{BASE_DIR}/#{@viewer.color}_stone_preview.png"
+    "#{BASE_DIR}/#{@user.color}_stone_preview.png"
   end
 
   def alt_text
@@ -36,7 +36,7 @@ class TilePresenter
 
   def container_classes
     classes = ["tile-container"]
-    if @viewer.type != :observer
+    if @user.viewer_type != :observer
       classes.push(tile_type, ("playable" if playable?), ("clickable" if clickable?))
 
       if game_is_being_scored? && has_stone?
@@ -47,11 +47,11 @@ class TilePresenter
   end
 
   def clickable?
-    game_is_active? && (@viewer.type == :active_player) && playable?
+    game_is_active? && (@user.viewer_type == :active_player) && playable?
   end
 
   def has_preview_stone?
-    game_is_active? && (@viewer.type != :observer)
+    game_is_active? && (@user.viewer_type != :observer)
   end
 
   def playable?
@@ -64,14 +64,6 @@ class TilePresenter
 
   def on_right_side?
     (@pos + 1) % @board_size == 0
-  end
-
-  def to_html(viewer)
-    _tmp = @viewer
-    @viewer = viewer
-    html_string = @@renderer.render_to_string(partial: 'games/tile', locals: { tile: self })
-    @viewer = _tmp
-    html_string
   end
 
   def to_s
@@ -179,12 +171,12 @@ class TilePresenter
   end
 
   def is_invalid_move?
-    @invalid_moves[@viewer.color].include?(pos)
+    @invalid_moves[@user.color].include?(pos)
   end
   def not_invalid_move?; !is_invalid_move? end
 
   def is_ko?
-    @is_ko && (@viewer.type == :active_player)
+    @is_ko && (@user.viewer_type == :active_player)
   end
   def not_ko?; !is_ko? end
 

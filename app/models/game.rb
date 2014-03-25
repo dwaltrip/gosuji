@@ -1,8 +1,8 @@
 class Game < ActiveRecord::Base
-  belongs_to :black_player, :class_name => 'User'
-  belongs_to :white_player, :class_name => 'User'
+  belongs_to :black_user, :class_name => 'User'
+  belongs_to :white_user, :class_name => 'User'
   belongs_to :creator, :class_name => 'User'
-  belongs_to :winner, :class_name => 'User'
+  belongs_to :winning_user, :class_name => 'User'
   has_many :boards, -> { order 'move_num ASC' }, inverse_of: :game
 
   validates :description, length: { maximum: 40 }
@@ -28,6 +28,29 @@ class Game < ActiveRecord::Base
   scope :open, lambda { where(:status => OPEN) }
   scope :active, lambda { where(:status => ACTIVE) }
 
+  def black_player
+    @black_player ||= Player.new(black_user, self)
+  end
+
+  def white_player
+    @white_player ||= Player.new(white_user, self)
+  end
+
+  def winner
+    @winner ||= (black_player if winning_user == black_user) || (white_player if winning_user == white_user)
+  end
+
+  def current_player(user)
+    (black_player if user == black_user) || (white_player if user == white_user)
+  end
+
+  def active_player
+    (black_player if black_player.their_turn?) || (white_player if white_player.their_turn?)
+  end
+
+  def inactive_player
+    active_player.opponent
+  end
 
   def active_board
     boards.last
@@ -45,13 +68,13 @@ class Game < ActiveRecord::Base
     active_board.move_num + 1
   end
 
-  def has_player?(player)
-    black_player == player || white_player == player
+  def has_user?(user)
+    black_user == user || white_user == user
   end
 
   def tiles_to_render(player, updates_only=false)
     if updates_only
-      tiles_to_update = get_rulebook.tiles_to_update(player_color(player))
+      tiles_to_update = get_rulebook.tiles_to_update(player.color)
       # rulebook doesnt have knowledge of previous board_states
       tiles_to_update.add(previous_board.pos) if previous_board && previous_board.pos
 
@@ -93,54 +116,12 @@ class Game < ActiveRecord::Base
     @dead_stones ||= JSON.parse(dead_stones_serialized).to_set
   end
 
-  def player_at_move(move_num)
-    white_goes_first = (handicap and handicap > 0)
-    black_goes_first = (not white_goes_first)
-
-    # move 0 is blank or handicap stone placement -- happens automatically, not from player actions
-    if ((move_num % 2 == 1) and white_goes_first) or ((move_num % 2 == 0) and black_goes_first)
-      white_player
-    else
-      black_player
-    end
-  end
-
-  def viewer(user)
-    Struct.new(:type, :color).new(viewer_type(user), player_color(user))
-  end
-
-  def viewer_type(user)
-    if user == active_player
-      :active_player
-    elsif user == inactive_player
-      :inactive_player
-    else
-      :observer
-    end
-  end
-
-  def active_player
-    player_at_move(next_move_num)
-  end
-
-  def inactive_player
-    player_at_move(active_board.move_num)
-  end
-
-  def player_color(player = nil)
-    (:black if player == black_player) || (:white if player == white_player)
-  end
-
   def white_capture_count
     captured_count(:white)
   end
 
   def black_capture_count
     captured_count(:black)
-  end
-
-  def point_count(player)
-    (black_point_count if player == black_player) || (white_point_count if player == white_player)
   end
 
   def black_point_count
@@ -152,18 +133,7 @@ class Game < ActiveRecord::Base
   end
 
   def point_difference
-    point_count(winner) - point_count(opponent(winner)) if end_type == WIN_BY_SCORE
-  end
-
-  def opponent(user)
-    if user == black_player
-      white_player
-    elsif user == white_player
-      black_player
-    else
-      logger.warn "-- Game.opponent (game.id: #{id}) -- weird 'user' input, inspecting: #{user.inspect}"
-      nil
-    end
+    winner.point_count - winner.opponent.point_count if end_type == WIN_BY_SCORE
   end
 
   def pregame_setup(challenger)
@@ -178,11 +148,11 @@ class Game < ActiveRecord::Base
     end
 
     if challenger_is_black then
-      self.black_player = challenger
-      self.white_player = creator
+      self.black_user = challenger
+      self.white_user = creator
     elsif
-      self.black_player = creator
-      self.white_player = challenger
+      self.black_user = creator
+      self.white_user = challenger
     end
 
     self.status = ACTIVE
@@ -190,13 +160,12 @@ class Game < ActiveRecord::Base
     Board.initial_board(self)
   end
 
-  def new_move(new_move_pos, current_player)
+  def new_move(new_move_pos, player)
     rulebook = get_rulebook
-    color = player_color(current_player)
 
-    if active? && current_player == active_player && rulebook.playable?(new_move_pos, color)
-      rulebook.play_move(new_move_pos, color)
-      create_next_board(new_move_pos, color)
+    if active? && player.their_turn? && rulebook.playable?(new_move_pos, player.color)
+      rulebook.play_move(new_move_pos, player.color)
+      create_next_board(new_move_pos, player.color)
 
       logger.info "-- Game.new_move -- rulebook.captured_stones: #{rulebook.captured_stones.inspect}"
       logger.info "-- Game.new_move -- rulebook.invalid_moves: #{rulebook.invalid_moves.inspect}"
@@ -206,8 +175,8 @@ class Game < ActiveRecord::Base
     end
   end
 
-  def pass(current_player)
-    if active? && current_player == active_player
+  def pass(player)
+    if active? && player.their_turn?
       if active_board.pass
         self.status = END_GAME_SCORING
         save
@@ -222,7 +191,7 @@ class Game < ActiveRecord::Base
       new_board.ko = nil
       new_board.pos = nil
       new_board.pass = true
-      new_board.captured_stones = captured_count(player_color(current_player))
+      new_board.captured_stones = captured_count(player.color)
       new_board.save
 
       true
@@ -232,13 +201,13 @@ class Game < ActiveRecord::Base
   end
 
   def undo(undoing_player)
-    if (active? || end_game_scoring?) && played_a_move?(undoing_player)
+    if (active? || end_game_scoring?) && undoing_player.played_a_move?
       prev_board = active_board
       prev_invalid_moves = get_rulebook.invalid_moves
 
-      if undoing_player == inactive_player
+      if undoing_player.not_their_turn?
         active_board.destroy # destroy 1 board
-      elsif undoing_player == active_player
+      elsif undoing_player.their_turn?
         boards.to_a[-2..-1].each { |board| board.destroy } # destroy 2 boards
       end
 
@@ -272,12 +241,12 @@ class Game < ActiveRecord::Base
     end
   end
 
-  def update_done_scoring_flags(player)
-    if has_player?(player) && end_game_scoring?
-      $redis.set(done_scoring_key(player), true)
-      $redis.expire(done_scoring_key(player), 600)
+  def update_done_scoring_flags(user)
+    if has_user?(user) && end_game_scoring?
+      $redis.set(done_scoring_key(user), true)
+      $redis.expire(done_scoring_key(user), 600)
 
-      black_done, white_done = $redis.mget(done_scoring_key(black_player), done_scoring_key(white_player))
+      black_done, white_done = $redis.mget(done_scoring_key(black_user), done_scoring_key(white_user))
       finish_scoring if black_done && white_done
       true
     else
@@ -293,24 +262,24 @@ class Game < ActiveRecord::Base
     self.end_type = WIN_BY_SCORE
 
     if black_score > white_score
-      self.winner = black_player
+      self.winning_user = black_user
     elsif white_score > black_score
-      self.winner = white_player
+      self.winning_user = white_user
     else
       self.end_type = TIE
-      self.winner = nil
+      self.winning_user = nil
     end
 
     finalize_game
   end
 
   def resign(player)
-    if has_player?(player) && (active? || end_game_scoring?)
+    if player.part_of_game? && (active? || end_game_scoring?)
       self.black_score = nil
       self.white_score = nil
 
       self.end_type = RESIGN
-      self.winner = opponent(player)
+      self.winning_user = player.opponent.user # need the actual user, not the decorated user
 
       finalize_game
       true
@@ -343,9 +312,8 @@ class Game < ActiveRecord::Base
   end
 
   def point_details(player)
-    color = player_color(player)
-    details = { territory: territory_counts(color), captures: captured_count(color) }
-    details[:komi] = komi if color == :white
+    details = { territory: territory_counts(player.color), captures: captured_count(player.color) }
+    details[:komi] = komi if player.color == :white
     details
   end
 
@@ -357,19 +325,19 @@ class Game < ActiveRecord::Base
     next_board = active_board.replicate_and_update(
       new_move_pos,
       captured_count(color),
-      player_color(active_player)
+      active_player.color
     )
     next_board.remove_stones(get_rulebook.captured_stones)
 
     # playing a new move, ko position can only occur for the waiting player (inactive player)
-    ko_pos = get_rulebook.ko_position(player_color(inactive_player))
+    ko_pos = get_rulebook.ko_position(inactive_player.color)
     next_board.ko = ko_pos if ko_pos
     next_board.save
   end
 
   def invalid_moves(player=nil)
     if player != nil
-      get_rulebook.invalid_moves[player_color(player)]
+      get_rulebook.invalid_moves[player.color]
     else
       get_rulebook.invalid_moves
     end
@@ -377,7 +345,7 @@ class Game < ActiveRecord::Base
 
   def get_ko_position(player)
     logger.info "-- Game.get_ko_position -- get_rulebook.ko_position: #{get_rulebook.ko_position.inspect}"
-    get_rulebook.ko_position(player_color(player))
+    get_rulebook.ko_position(player.color)
   end
 
   def show_score?
@@ -420,6 +388,10 @@ class Game < ActiveRecord::Base
     end_type == WIN_BY_TIME
   end
 
+  def handicap?
+    handicap != nil && handicap > 0
+  end
+
   def captured_count(color)
     opposing_color = (:black if color == :white) || (:white if color == :black)
     dead_enemy_stone_count = (dead_stone_count(opposing_color) if finished?) || 0
@@ -435,7 +407,7 @@ class Game < ActiveRecord::Base
   def get_rulebook(force_rebuild=false)
     if !@rulebook || force_rebuild
       @rulebook = Rulebook::Handler.new({ size: board_size, board: active_board.tiles })
-      @rulebook.set_ko_position(active_board.ko, player_color(active_player)) if active_board.ko
+      @rulebook.set_ko_position(active_board.ko, active_player.color) if active_board.ko
     end
     @rulebook
   end
@@ -457,14 +429,16 @@ class Game < ActiveRecord::Base
   end
 
   def played_a_move?(player)
-    (player_color(player) && ((move_num >= 2) || (move_num == 1 && player == inactive_player)))
+    ((move_num >= 2) || (move_num == 1 && player == inactive_player))
   end
 
   def last_board(color)
     if boards.length > 0
       if !@last_boards || (move_num != @current_move_num)
         b_board, w_board = boards[-1], boards[-2]
-        b_board, w_board = w_board, b_board if player_color(player_at_move(b_board.move_num)) == :white
+        last_move_played_by_white = ((handicap? && move_num % 2 == 1) || (move_num % 2 == 0) && move_num > 0)
+        b_board, w_board = w_board, b_board if last_move_played_by_white
+
         @last_boards = { black: b_board, white: w_board }
         @current_move_num = move_num
       end
